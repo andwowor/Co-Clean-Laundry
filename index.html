@@ -6,7 +6,9 @@
   <title>Co Clean Laundry — Input Biaya</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/style.css" />
+  <!-- Cache-busting: selalu memuat CSS versi terbaru -->
+  <script>document.write('<link rel="stylesheet" href="assets/style.css?v=' + Date.now() + '">');</script>
+  <noscript><link rel="stylesheet" href="assets/style.css" /></noscript>
 </head>
 <body>
   <header class="topbar">
@@ -147,7 +149,18 @@
     <span>Co Clean Laundry · Dashboard biaya</span>
   </footer>
 
-  <script src="config.js"></script>
-  <script src="assets/app.js"></script>
+  <!-- Cache-busting: selalu memuat versi terbaru (config dulu, lalu app) -->
+  <script>
+    (function () {
+      var v = 'v=' + Date.now();
+      function load(src, next) {
+        var s = document.createElement('script');
+        s.src = src + (src.indexOf('?') < 0 ? '?' : '&') + v;
+        s.onload = next || null;
+        document.head.appendChild(s);
+      }
+      load('config.js', function () { load('assets/app.js'); });
+    })();
+  </script>
 </body>
 </html>
