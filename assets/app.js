@@ -49,39 +49,46 @@ function sheetSerial(yyyy_mm_dd) {
   return Math.floor(ms / 86400000);
 }
 
-// ---------- Network ----------
-// Baca respons sebagai teks dulu, lalu coba JSON. Kalau server membalas
-// halaman HTML (mis. layar login Google), berikan pesan yang informatif.
-function parseRes_(r) {
-  return r.text().then(function (t) {
-    try {
-      return JSON.parse(t);
-    } catch (e) {
-      var s = String(t || '').trim();
-      if (s.charAt(0) === '<' || s.toLowerCase().indexOf('<html') !== -1) {
-        throw new Error('Server membalas halaman web, bukan data. ' +
-          'Periksa deployment Web App: "Who has access" harus "Anyone", ' +
-          'lalu Deploy > Manage deployments > Edit > Version: New version.');
-      }
-      throw new Error('Respons server tidak valid: ' + s.slice(0, 140));
+// ---------- Network (JSONP) ----------
+// Apps Script + browser sering kena masalah CORS (di Safari/iOS muncul
+// "Load failed"). JSONP memuat respons lewat <script> sehingga bebas CORS
+// dan jalan di semua browser. Backend membungkus balasan sebagai
+// callback(JSON) bila ada parameter "callback".
+// Catatan: parameter (termasuk password) ikut terkirim di URL.
+function jsonp(params) {
+  return new Promise(function (resolve, reject) {
+    var cb = '__ccl_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    var s = document.createElement('script');
+    var timer = setTimeout(function () {
+      cleanup();
+      reject(new Error('Timeout menghubungi server. Cek API_URL di config.js & koneksi.'));
+    }, 25000);
+    function cleanup() {
+      clearTimeout(timer);
+      try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+      if (s.parentNode) s.parentNode.removeChild(s);
     }
+    window[cb] = function (data) { cleanup(); resolve(data); };
+    s.onerror = function () {
+      cleanup();
+      reject(new Error('Gagal memuat dari server (cek URL Web App / akses "Anyone").'));
+    };
+    var q = Object.keys(params).map(function (k) {
+      var val = params[k] == null ? '' : params[k];
+      return encodeURIComponent(k) + '=' + encodeURIComponent(val);
+    }).join('&');
+    s.src = CONFIG.API_URL + '?' + q + '&callback=' + cb + '&t=' + Date.now();
+    document.body.appendChild(s);
   });
 }
 
 function apiGet() {
-  var url = CONFIG.API_URL +
-    '?password=' + encodeURIComponent(getPw()) +
-    '&t=' + Date.now();
-  return fetch(url, { method: 'GET' }).then(parseRes_);
+  return jsonp({ password: getPw() });
 }
 
-function apiPost(payload) {
-  return fetch(CONFIG.API_URL, {
-    method: 'POST',
-    // text/plain => "simple request", menghindari preflight CORS ke Apps Script
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
-  }).then(parseRes_);
+function apiPostAppend(payload) {
+  payload.action = 'append';
+  return jsonp(payload);
 }
 
 // ---------- Populate dropdowns ----------
@@ -217,7 +224,7 @@ function handleSubmit(e) {
   btn.disabled = true;
   btn.textContent = 'Menyimpan...';
 
-  apiPost(payload).then(function (res) {
+  apiPostAppend(payload).then(function (res) {
     if (!res.ok) {
       if (res.error === 'UNAUTHORIZED') {
         clearPw();
