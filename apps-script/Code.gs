@@ -46,6 +46,10 @@ function doGet(e) {
     result = { ok: false, error: 'UNAUTHORIZED' };
   } else if (p.action === 'append') {
     try { result = appendRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else if (p.action === 'update') {
+    try { result = updateRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else if (p.action === 'delete') {
+    try { result = deleteRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else {
     try { result = buildData_(); } catch (err) { result = { ok: false, error: String(err) }; }
   }
@@ -136,12 +140,32 @@ function buildData_() {
     verifikasi  = distinct_(body, C_VERIF   - 1);
   }
 
-  // ---- Baris terbaru untuk ditampilkan (read-only) ----
+  // ---- Baris terbaru: nilai tampil (tabel) + nilai mentah (untuk edit) ----
   var N = 30;
-  var start = Math.max(2, lastData - N + 1);
-  var cnt = Math.max(0, lastData - start + 1);
-  var recent = cnt > 0 ? biaya.getRange(start, 1, cnt, COLS).getDisplayValues() : [];
-  recent.reverse(); // terbaru di atas
+  var recent = [];
+  if (lastData >= 2) {
+    var start = Math.max(2, lastData - N + 1);
+    var cnt = lastData - start + 1;
+    var disp = biaya.getRange(start, 1, cnt, COLS).getDisplayValues();
+    var raw  = biaya.getRange(start, 1, cnt, COLS).getValues();
+    for (var j = 0; j < cnt; j++) {
+      recent.push({
+        row: start + j,
+        cells: disp[j],
+        edit: {
+          keterangan: raw[j][C_KET - 1],
+          nominal: raw[j][C_NOMINAL - 1],
+          tanggal: toDateStr_(raw[j][C_TGL - 1]),
+          outlet: raw[j][C_OUTLET - 1],
+          sumberDana: raw[j][C_SUMBER - 1],
+          keteranganPenggunaan: raw[j][C_KETPAKAI - 1],
+          statusLapor: raw[j][C_STATUS - 1],
+          verifikasi: raw[j][C_VERIF - 1]
+        }
+      });
+    }
+    recent.reverse(); // terbaru di atas
+  }
 
   return {
     ok: true,
@@ -179,11 +203,11 @@ function lastDataRow_(sh) {
 }
 
 // =================================================================
-// TAMBAH BARIS (doPost / doGet action=append)
+// TAMBAH / EDIT / HAPUS BARIS
 // =================================================================
 
-function appendRow_(body) {
-  // --- Ambil & rapikan input ---
+// Validasi & normalisasi input bersama (dipakai append & update).
+function validateInput_(body) {
   var ket      = trim_(body.keterangan);
   var outlet   = trim_(body.outlet);
   var sumber   = trim_(body.sumberDana);
@@ -193,20 +217,44 @@ function appendRow_(body) {
   var nominal  = Number(body.nominal);
   var tgl      = trim_(body.tanggal);
 
-  // --- Validasi ---
-  if (!ket)            return { ok: false, error: 'Keterangan wajib dipilih.' };
-  if (!(nominal > 0))  return { ok: false, error: 'Nominal harus berupa angka lebih dari 0.' };
-  if (!tgl)            return { ok: false, error: 'Tanggal wajib diisi.' };
-  if (!outlet)         return { ok: false, error: 'Outlet wajib dipilih.' };
+  if (!ket)            return { error: 'Keterangan wajib dipilih.' };
+  if (!(nominal > 0))  return { error: 'Nominal harus berupa angka lebih dari 0.' };
+  if (!tgl)            return { error: 'Tanggal wajib diisi.' };
+  if (!outlet)         return { error: 'Outlet wajib dipilih.' };
 
-  var parts = tgl.split('-'); // format dari <input type=date> = YYYY-MM-DD
-  if (parts.length !== 3) return { ok: false, error: 'Format tanggal tidak valid.' };
+  var parts = tgl.split('-'); // YYYY-MM-DD dari <input type=date>
+  if (parts.length !== 3) return { error: 'Format tanggal tidak valid.' };
   var dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0);
 
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(SHEET_BIAYA);
+  return {
+    ket: ket, outlet: outlet, sumber: sumber, status: status, verif: verif,
+    ketPakai: ketPakai, nominal: nominal, dateObj: dateObj
+  };
+}
 
-  // Kunci agar dua orang tidak menulis ke baris yang sama bersamaan.
+// Tulis kolom input ke satu baris (tanpa menyentuh kolom formula & NOMOR).
+function writeInputs_(sh, r, v) {
+  sh.getRange(r, C_KET).setValue(v.ket);
+  sh.getRange(r, C_NOMINAL).setValue(v.nominal);
+  sh.getRange(r, C_TGL).setValue(v.dateObj);
+  sh.getRange(r, C_OUTLET).setValue(v.outlet);
+  sh.getRange(r, C_SUMBER).setValue(v.sumber);
+  sh.getRange(r, C_KETPAKAI).setValue(v.ketPakai);
+  sh.getRange(r, C_STATUS).setValue(v.status);
+  sh.getRange(r, C_VERIF).setValue(v.verif);
+}
+
+// Cek pengaman: pastikan KETERANGAN baris masih sama seperti saat dimuat.
+function verifyRow_(sh, row, expectKeterangan) {
+  if (expectKeterangan == null || expectKeterangan === '') return true;
+  return String(sh.getRange(row, C_KET).getValue()) === String(expectKeterangan);
+}
+
+function appendRow_(body) {
+  var v = validateInput_(body);
+  if (v.error) return { ok: false, error: v.error };
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_BIAYA);
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -214,32 +262,65 @@ function appendRow_(body) {
     var r = lastData + 1;
     if (r > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 1);
 
-    // Salin formula + format dari baris sebelumnya -> baris baru.
-    // Referensi relatif (mis. $C2, E2) otomatis menyesuaikan ke baris baru,
-    // sehingga kolom B/I/J/L tetap memakai formula asli sheet (locale aman).
+    // Salin formula + format dari baris sebelumnya -> baris baru (referensi
+    // relatif menyesuaikan), agar kolom B/I/J/L tetap memakai formula sheet.
     sh.getRange(lastData, 1, 1, COLS)
       .copyTo(sh.getRange(r, 1, 1, COLS), { contentsOnly: false });
 
-    // Tulis kolom input (menimpa nilai hasil copy dari baris sebelumnya).
-    sh.getRange(r, C_KET).setValue(ket);
-    sh.getRange(r, C_NOMINAL).setValue(nominal);
-    sh.getRange(r, C_TGL).setValue(dateObj);
-    sh.getRange(r, C_OUTLET).setValue(outlet);
-    sh.getRange(r, C_SUMBER).setValue(sumber);
-    sh.getRange(r, C_KETPAKAI).setValue(ketPakai);
-    sh.getRange(r, C_STATUS).setValue(status);
-    sh.getRange(r, C_VERIF).setValue(verif);
-
-    // NOMOR otomatis = nomor terbesar sebelumnya + 1.
-    sh.getRange(r, C_NOMOR).setValue(nextNomor_(sh, lastData));
-
-    // Kosongkan KETERANGAN KOREKSI yang ikut tersalin.
-    sh.getRange(r, C_KOREKSI).clearContent();
+    writeInputs_(sh, r, v);
+    sh.getRange(r, C_NOMOR).setValue(nextNomor_(sh, lastData)); // nomor otomatis
+    sh.getRange(r, C_KOREKSI).clearContent();                    // kosongkan koreksi
 
     SpreadsheetApp.flush();
-
     var vals = sh.getRange(r, 1, 1, COLS).getDisplayValues()[0];
     return { ok: true, row: r, values: vals };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Edit baris yang sudah ada (hanya kolom input; kolom formula terhitung ulang).
+function updateRow_(body) {
+  var row = parseInt(body.row, 10);
+  var v = validateInput_(body);
+  if (v.error) return { ok: false, error: v.error };
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_BIAYA);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastData = lastDataRow_(sh);
+    if (!(row >= 2 && row <= lastData)) {
+      return { ok: false, error: 'Baris tidak valid. Klik Muat ulang lalu coba lagi.' };
+    }
+    if (!verifyRow_(sh, row, body.expectKeterangan)) {
+      return { ok: false, error: 'Baris sudah berubah sejak dimuat. Klik Muat ulang lalu coba lagi.' };
+    }
+    writeInputs_(sh, row, v);
+    SpreadsheetApp.flush();
+    var vals = sh.getRange(row, 1, 1, COLS).getDisplayValues()[0];
+    return { ok: true, row: row, values: vals };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Hapus seluruh baris.
+function deleteRow_(body) {
+  var row = parseInt(body.row, 10);
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_BIAYA);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastData = lastDataRow_(sh);
+    if (!(row >= 2 && row <= lastData)) {
+      return { ok: false, error: 'Baris tidak valid. Klik Muat ulang lalu coba lagi.' };
+    }
+    if (!verifyRow_(sh, row, body.expectKeterangan)) {
+      return { ok: false, error: 'Baris sudah berubah sejak dimuat. Klik Muat ulang lalu coba lagi.' };
+    }
+    sh.deleteRow(row);
+    return { ok: true, deleted: row };
   } finally {
     lock.releaseLock();
   }
@@ -261,6 +342,18 @@ function nextNomor_(sh, lastData) {
 // =================================================================
 
 function trim_(v) { return v == null ? '' : String(v).trim(); }
+
+// Ubah nilai sel tanggal (Date atau serial number) menjadi "yyyy-MM-dd".
+function toDateStr_(v) {
+  if (v instanceof Date) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  if (typeof v === 'number' && v > 0) {
+    var ms = Math.round((v - 25569) * 86400000); // serial 25569 = 1970-01-01
+    return Utilities.formatDate(new Date(ms), 'UTC', 'yyyy-MM-dd');
+  }
+  return '';
+}
 
 function out_(obj) {
   return ContentService
