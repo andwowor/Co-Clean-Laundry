@@ -225,6 +225,7 @@ function updatePreview() {
 function startEdit(item) {
   var e = item.edit || {};
   EDIT_ROW = { row: item.row, keterangan: e.keterangan };
+  showView('form');
 
   setSelect($('keterangan'), e.keterangan);
   $('nominal').value = formatThousand(String(e.nominal == null ? '' : e.nominal));
@@ -386,6 +387,15 @@ function markNewRow() {
   if (first) first.classList.add('new');
 }
 
+// Tampilkan satu view: 'form' (Tambah Biaya) atau 'data' (Data Biaya).
+function showView(name) {
+  var isForm = name === 'form';
+  show($('viewForm'), isForm);
+  show($('viewData'), !isForm);
+  $('tabForm').classList.toggle('active', isForm);
+  $('tabData').classList.toggle('active', !isForm);
+}
+
 // ---------- Init ----------
 function init() {
   $('appTitle').textContent = (typeof CONFIG !== 'undefined' && CONFIG.APP_TITLE) || 'Co Clean Laundry';
@@ -408,6 +418,10 @@ function init() {
   ['keterangan', 'outlet', 'tanggal'].forEach(function (id) {
     $(id).addEventListener('change', updatePreview);
   });
+
+  // Tab / view
+  $('tabForm').addEventListener('click', function () { showView('form'); });
+  $('tabData').addEventListener('click', function () { showView('data'); });
 
   // Form & tombol
   $('biayaForm').addEventListener('submit', handleSubmit);
