@@ -3,11 +3,10 @@
  * =======================================================
  * Skrip ini menjadi "jembatan" antara dashboard statis (GitHub Pages)
  * dan Google Spreadsheet. Tugasnya:
- *   - doGet  : mengirim opsi dropdown + data terbaru sheet BIAYA ke dashboard.
- *   - doPost : menambah 1 baris baru ke sheet BIAYA tepat di bawah baris
- *              terakhir yang sudah terisi, lalu menyalin formula & format
- *              dari baris sebelumnya sehingga kolom otomatis (SUBJEK BIAYA,
- *              POS BIAYA APLIKASI, ITEM BIAYA, KODE TRANSAKSI) tetap jalan.
+ *   - doGet  : mengirim opsi dropdown + data terbaru sheet BIAYA ke dashboard,
+ *              dan (action=append) menambah baris baru. Mendukung JSONP via
+ *              parameter "callback" agar bebas masalah CORS di browser.
+ *   - doPost : sama seperti append, untuk pemanggil yang memakai POST JSON.
  *
  * PENTING: Buat skrip ini dari DALAM spreadsheet (Extensions > Apps Script)
  * agar SpreadsheetApp.getActiveSpreadsheet() menunjuk ke file yang benar.
@@ -42,12 +41,15 @@ var C_KOREKSI = 14; // N  KETERANGAN KOREKSI  (dikosongkan)
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  if (!checkPassword_(p.password)) return out_({ ok: false, error: 'UNAUTHORIZED' });
-  try {
-    return out_(buildData_());
-  } catch (err) {
-    return out_({ ok: false, error: String(err) });
+  var result;
+  if (!checkPassword_(p.password)) {
+    result = { ok: false, error: 'UNAUTHORIZED' };
+  } else if (p.action === 'append') {
+    try { result = appendRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else {
+    try { result = buildData_(); } catch (err) { result = { ok: false, error: String(err) }; }
   }
+  return reply_(result, p.callback);
 }
 
 function doPost(e) {
@@ -177,7 +179,7 @@ function lastDataRow_(sh) {
 }
 
 // =================================================================
-// TAMBAH BARIS (doPost)
+// TAMBAH BARIS (doPost / doGet action=append)
 // =================================================================
 
 function appendRow_(body) {
@@ -264,4 +266,16 @@ function out_(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Bungkus JSONP jika ada parameter "callback" (menghindari masalah CORS di
+// browser seperti Safari/iOS). Tanpa callback, kembalikan JSON biasa.
+function reply_(obj, callback) {
+  var json = JSON.stringify(obj);
+  if (callback) {
+    return ContentService
+      .createTextOutput(String(callback) + '(' + json + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
 }
