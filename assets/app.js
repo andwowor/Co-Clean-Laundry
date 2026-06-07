@@ -50,11 +50,29 @@ function sheetSerial(yyyy_mm_dd) {
 }
 
 // ---------- Network ----------
+// Baca respons sebagai teks dulu, lalu coba JSON. Kalau server membalas
+// halaman HTML (mis. layar login Google), berikan pesan yang informatif.
+function parseRes_(r) {
+  return r.text().then(function (t) {
+    try {
+      return JSON.parse(t);
+    } catch (e) {
+      var s = String(t || '').trim();
+      if (s.charAt(0) === '<' || s.toLowerCase().indexOf('<html') !== -1) {
+        throw new Error('Server membalas halaman web, bukan data. ' +
+          'Periksa deployment Web App: "Who has access" harus "Anyone", ' +
+          'lalu Deploy > Manage deployments > Edit > Version: New version.');
+      }
+      throw new Error('Respons server tidak valid: ' + s.slice(0, 140));
+    }
+  });
+}
+
 function apiGet() {
   var url = CONFIG.API_URL +
     '?password=' + encodeURIComponent(getPw()) +
     '&t=' + Date.now();
-  return fetch(url, { method: 'GET' }).then(function (r) { return r.json(); });
+  return fetch(url, { method: 'GET' }).then(parseRes_);
 }
 
 function apiPost(payload) {
@@ -63,7 +81,7 @@ function apiPost(payload) {
     // text/plain => "simple request", menghindari preflight CORS ke Apps Script
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
-  }).then(function (r) { return r.json(); });
+  }).then(parseRes_);
 }
 
 // ---------- Populate dropdowns ----------
@@ -165,7 +183,9 @@ function loadData(opts) {
     applyData(data);
     if (opts.onok) opts.onok();
   }).catch(function (err) {
-    setMsg($('formMsg'), 'Gagal terhubung ke server: ' + err.message, 'err');
+    // Tampilkan error di layar yang sedang aktif (gerbang login atau form).
+    var target = $('gate').hidden ? $('formMsg') : $('gateMsg');
+    setMsg(target, 'Gagal: ' + err.message, 'err');
     if (info) info.textContent = 'Gagal memuat.';
   });
 }
