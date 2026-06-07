@@ -156,33 +156,48 @@ function renderRecent(data) {
     th.textContent = h;
     head.appendChild(th);
   });
+
   var thAksi = document.createElement('th');
   thAksi.textContent = 'Aksi';
   head.appendChild(thAksi);
 
-  (data.recent || []).forEach(function (item) {
+  var oldFormat = false;
+  (data.recent || []).forEach(function (raw) {
+    // Dukung 2 format: objek {row, cells, edit} (baru) ATAU array sel (lama).
+    var isObj = raw && typeof raw === 'object' && !Array.isArray(raw);
+    if (!isObj) oldFormat = true;
+    var item = isObj ? raw : { row: null, cells: raw, edit: null };
+
     var tr = document.createElement('tr');
     (item.cells || []).forEach(function (cell) {
       var td = document.createElement('td');
       td.textContent = cell;
       tr.appendChild(td);
     });
+
     var act = document.createElement('td');
     act.className = 'actions';
-    var bEdit = document.createElement('button');
-    bEdit.type = 'button'; bEdit.className = 'mini'; bEdit.textContent = 'Edit';
-    bEdit.addEventListener('click', function () { startEdit(item); });
-    var bDel = document.createElement('button');
-    bDel.type = 'button'; bDel.className = 'mini danger'; bDel.textContent = 'Hapus';
-    bDel.addEventListener('click', function () { doDelete(item); });
-    act.appendChild(bEdit); act.appendChild(bDel);
+    if (item.row != null && item.edit) {
+      var bEdit = document.createElement('button');
+      bEdit.type = 'button'; bEdit.className = 'mini'; bEdit.textContent = 'Edit';
+      bEdit.addEventListener('click', function () { startEdit(item); });
+      var bDel = document.createElement('button');
+      bDel.type = 'button'; bDel.className = 'mini danger'; bDel.textContent = 'Hapus';
+      bDel.addEventListener('click', function () { doDelete(item); });
+      act.appendChild(bEdit); act.appendChild(bDel);
+    } else {
+      act.textContent = '—';
+    }
     tr.appendChild(act);
     body.appendChild(tr);
   });
 
-  $('recentInfo').textContent =
-    'Menampilkan ' + (data.recent ? data.recent.length : 0) +
+  var info = 'Menampilkan ' + (data.recent ? data.recent.length : 0) +
     ' entri terbaru · baris terakhir terisi: ' + (data.lastDataRow || '-');
+  if (oldFormat) {
+    info += ' · ⚠️ Backend masih versi lama: perbarui Code.gs lalu Deploy versi baru agar Edit/Hapus aktif.';
+  }
+  $('recentInfo').textContent = info;
 }
 
 // ---------- Pratinjau kolom otomatis ----------
