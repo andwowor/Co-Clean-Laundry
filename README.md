@@ -8,16 +8,16 @@ lengkap dengan kolom-kolom otomatis (formula) yang ikut tersalin.
 ## Arsitektur
 
 ```
-┌────────────────────────┐        GET (opsi dropdown + data terbaru)
-│  Dashboard (statis)    │  ───────────────────────────────────────►  ┌──────────────────────┐
-│  HTML/CSS/JS           │                                            │  Google Apps Script  │
-│  di GitHub Pages       │  ◄───────────────────────────────────────  │  Web App (Code.gs)   │
-└────────────────────────┘        POST (tambah baris) + kata sandi    └──────────┬───────────┘
-                                                                                  │ menulis
-                                                                                  ▼
-                                                                       ┌──────────────────────┐
-                                                                       │  Spreadsheet · BIAYA │
-                                                                       └──────────────────────┘
++----------------------+   GET: opsi dropdown + data terbaru
+|  Dashboard (statis)  |  ------------------------------->  +----------------------+
+|  HTML/CSS/JS         |                                    |  Google Apps Script  |
+|  di GitHub Pages     |  <-------------------------------  |  Web App (Code.gs)   |
++----------------------+   POST: tambah baris + kata sandi  +----------+-----------+
+                                                                       | menulis
+                                                                       v
+                                                            +----------------------+
+                                                            |  Spreadsheet: BIAYA  |
+                                                            +----------------------+
 ```
 
 GitHub Pages hanya menyajikan file statis, jadi penulisan ke Sheets dilakukan
