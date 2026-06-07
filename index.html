@@ -41,9 +41,15 @@
 
   <!-- ===== Aplikasi utama ===== -->
   <main id="app" hidden>
-    <div class="grid">
-      <!-- Form input -->
-      <section class="card">
+    <!-- Navigasi tab -->
+    <nav class="tabs">
+      <button id="tabForm" class="tab active" type="button">➕ Tambah Biaya</button>
+      <button id="tabData" class="tab" type="button">📊 Data Biaya</button>
+    </nav>
+
+    <!-- ===== View: Tambah Biaya ===== -->
+    <section id="viewForm" class="view">
+      <div class="card form-card">
         <h2>Tambah Biaya Baru</h2>
         <p class="muted">Data akan ditambahkan otomatis di baris terbawah sheet BIAYA.</p>
         <form id="biayaForm" autocomplete="off">
@@ -116,10 +122,12 @@
           <button type="button" class="ghost block" id="cancelEdit" hidden>Batal edit</button>
           <p id="formMsg" class="msg" role="alert"></p>
         </form>
-      </section>
+      </div>
+    </section>
 
-      <!-- Tabel data terbaru -->
-      <section class="card">
+    <!-- ===== View: Data Biaya ===== -->
+    <section id="viewData" class="view" hidden>
+      <div class="card">
         <div class="card-head">
           <h2>Data Terbaru</h2>
           <button id="btnRefresh" class="ghost">↻ Muat ulang</button>
@@ -131,8 +139,8 @@
             <tbody id="recentBody"></tbody>
           </table>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   </main>
 
   <footer class="foot">
