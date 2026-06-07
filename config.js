@@ -8,7 +8,7 @@
  *   https://script.google.com/macros/s/AKfycb.../exec
  */
 const CONFIG = {
-  API_URL: "GANTI_DENGAN_URL_WEB_APP_ANDA",
+  API_URL: "https://script.google.com/macros/s/AKfycbw3wlwhZKOVFefFN8LpmkAGlJUn6kdd454mnTxa3qQlzrReeaEZx7q3XzulKCeCd5Cp/exec",
 
   // Tampilan
   APP_TITLE: "Co Clean Laundry — Input Biaya",
