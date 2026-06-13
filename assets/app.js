@@ -453,4 +453,9 @@ function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Saat di-load dinamis (cache-busting), DOM bisa sudah siap -> jalankan langsung.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
