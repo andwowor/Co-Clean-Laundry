@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Co Clean Laundry — Input Biaya</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Cache-busting: selalu memuat CSS versi terbaru -->
+  <script>document.write('<link rel="stylesheet" href="assets/style.css?v=' + Date.now() + '">');</script>
+  <noscript><link rel="stylesheet" href="assets/style.css" /></noscript>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🧺</span>
+      <div>
+        <h1 id="appTitle">Co Clean Laundry</h1>
+        <p class="subtitle">Live Dashboard — Input Biaya ke sheet <strong>BIAYA</strong></p>
+      </div>
+    </div>
+    <button id="btnLogout" class="ghost" hidden>Keluar</button>
+  </header>
+
+  <!-- ===== Gerbang kata sandi ===== -->
+  <section id="gate" class="card gate" hidden>
+    <h2>Masuk Dashboard</h2>
+    <p class="muted">Masukkan kata sandi untuk mengakses dan menambah data biaya.</p>
+    <form id="gateForm" autocomplete="off">
+      <label>Kata sandi
+        <input type="password" id="gatePassword" required placeholder="••••••••" />
+      </label>
+      <button type="submit" class="primary" id="gateBtn">Masuk</button>
+    </form>
+    <p id="gateMsg" class="msg" role="alert"></p>
+  </section>
+
+  <!-- ===== Banner peringatan konfigurasi ===== -->
+  <section id="configWarn" class="card warn" hidden>
+    <strong>⚠️ Belum dikonfigurasi.</strong>
+    <span>Buka file <code>config.js</code> lalu isi <code>API_URL</code> dengan URL Web App Apps Script Anda (lihat README).</span>
+  </section>
+
+  <!-- ===== Aplikasi utama ===== -->
+  <main id="app" hidden>
+    <!-- Navigasi tab -->
+    <nav class="tabs">
+      <button id="tabForm" class="tab active" type="button">➕ Tambah Biaya</button>
+      <button id="tabData" class="tab" type="button">📊 Data Biaya</button>
+    </nav>
+
+    <!-- ===== View: Tambah Biaya ===== -->
+    <section id="viewForm" class="view">
+      <div class="card form-card">
+        <h2>Tambah Biaya Baru</h2>
+        <p class="muted">Data akan ditambahkan otomatis di baris terbawah sheet BIAYA.</p>
+        <form id="biayaForm" autocomplete="off">
+          <div class="field">
+            <label for="keterangan">Keterangan <span class="req">*</span></label>
+            <select id="keterangan" required>
+              <option value="" disabled selected>— Pilih keterangan —</option>
+            </select>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="nominal">Nominal (Rp) <span class="req">*</span></label>
+              <input type="text" id="nominal" inputmode="numeric" required placeholder="0" />
+            </div>
+            <div class="field">
+              <label for="tanggal">Tanggal <span class="req">*</span></label>
+              <input type="date" id="tanggal" required />
+            </div>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="outlet">Outlet <span class="req">*</span></label>
+              <select id="outlet" required>
+                <option value="" disabled selected>— Pilih outlet —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="sumberDana">Sumber Dana</label>
+              <select id="sumberDana">
+                <option value="" selected>— Pilih sumber dana —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="keteranganPenggunaan">Keterangan Penggunaan</label>
+            <input type="text" id="keteranganPenggunaan" placeholder="Tulis penggunaan biaya..." />
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="statusLapor">Status Lapor Aplikasi</label>
+              <select id="statusLapor">
+                <option value="" selected>— Pilih status —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="verifikasi">Verifikasi Owner</label>
+              <select id="verifikasi">
+                <option value="" selected>— Pilih verifikasi —</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Pratinjau kolom otomatis (read-only) -->
+          <div class="preview">
+            <h3>Pratinjau kolom otomatis (dihitung sheet)</h3>
+            <dl>
+              <div><dt>Subjek Biaya</dt><dd id="pvSubjek">—</dd></div>
+              <div><dt>Pos Biaya Aplikasi</dt><dd id="pvPosApp">—</dd></div>
+              <div><dt>Item Biaya</dt><dd id="pvItem">—</dd></div>
+              <div><dt>Kode Transaksi</dt><dd id="pvKode">—</dd></div>
+            </dl>
+          </div>
+
+          <p id="editBanner" class="edit-banner" hidden></p>
+          <button type="submit" class="primary" id="submitBtn">💾 Simpan ke Sheet</button>
+          <button type="button" class="ghost block" id="cancelEdit" hidden>Batal edit</button>
+          <p id="formMsg" class="msg" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== View: Data Biaya ===== -->
+    <section id="viewData" class="view" hidden>
+      <div class="card">
+        <div class="card-head">
+          <h2>Data Terbaru</h2>
+          <button id="btnRefresh" class="ghost">↻ Muat ulang</button>
+        </div>
+        <p class="muted" id="recentInfo">Memuat...</p>
+        <div class="table-wrap">
+          <table id="recentTable">
+            <thead><tr id="recentHead"></tr></thead>
+            <tbody id="recentBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>Co Clean Laundry · Dashboard biaya</span>
+  </footer>
+
+  <!-- Cache-busting: selalu memuat versi terbaru (config dulu, lalu app) -->
+  <script>
+    (function () {
+      var v = 'v=' + Date.now();
+      function load(src, next) {
+        var s = document.createElement('script');
+        s.src = src + (src.indexOf('?') < 0 ? '?' : '&') + v;
+        s.onload = next || null;
+        document.head.appendChild(s);
+      }
+      load('config.js', function () { load('assets/app.js'); });
+    })();
+  </script>
+</body>
+</html>
