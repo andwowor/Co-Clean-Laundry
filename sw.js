@@ -5,8 +5,8 @@ var ASSETS = [
   'index.html',
   'manifest.webmanifest',
   'assets/logo.svg?v=2',
-  'assets/icon-192.png',
-  'assets/icon-512.png'
+  'assets/icon192.png',
+  'assets/icon512.png'
 ];
 
 self.addEventListener('install', function (e) {
