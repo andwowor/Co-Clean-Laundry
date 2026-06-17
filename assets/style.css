@@ -154,5 +154,14 @@ button.mini.danger:hover { background: var(--err-bg); }
 }
 .ghost.block { width: 100%; margin-top: 8px; }
 
+/* ---------- Deposit ---------- */
+.saldo-box {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px; margin: 4px 0 14px; border-radius: 12px;
+  background: var(--ok-bg); border: 1px solid #bfe6cf;
+}
+.saldo-label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.saldo-value { font-size: 22px; font-weight: 700; color: var(--ok); }
+
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
 [hidden] { display: none !important; }
