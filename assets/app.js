@@ -15,6 +15,9 @@ var STATE = {
 // Baris yang sedang diedit: null = mode tambah; {row, keterangan} = mode edit.
 var EDIT_ROW = null;
 
+// Data deposit pelanggan: { names, rows:[{name,tanggal,outlet,jumlah}], total }.
+var DEPOSIT = { names: [], rows: [], total: 0 };
+
 // ---------- Helpers ----------
 var $ = function (id) { return document.getElementById(id); };
 
@@ -145,6 +148,7 @@ function applyData(data) {
   fillSelect($('verifikasi'), data.verifikasi || [], true);
 
   renderRecent(data);
+  populateDeposit(data);
 }
 
 function renderRecent(data) {
@@ -282,6 +286,121 @@ function doDelete(item) {
   });
 }
 
+// ---------- Deposit ----------
+// Format angka bertanda jadi "Rp 1.234.567" / "-Rp 1.234.567".
+function rupiah(n) {
+  n = Number(n) || 0;
+  var sign = n < 0 ? '-' : '';
+  return sign + 'Rp ' + formatThousand(String(Math.abs(Math.round(n))));
+}
+
+function depBalance(name) {
+  var s = 0;
+  DEPOSIT.rows.forEach(function (r) { if (r.name === name) s += Number(r.jumlah) || 0; });
+  return s;
+}
+
+function populateDeposit(data) {
+  var dep = (data && data.deposit) || { names: [], rows: [], total: 0 };
+  DEPOSIT = { names: dep.names || [], rows: dep.rows || [], total: dep.total || 0 };
+
+  // Dropdown nama (cek saldo) + datalist (input, boleh ketik nama baru)
+  fillSelect($('depCekNama'), DEPOSIT.names, true);
+  var dl = $('depNamaList');
+  dl.innerHTML = '';
+  DEPOSIT.names.forEach(function (n) {
+    var o = document.createElement('option'); o.value = n; dl.appendChild(o);
+  });
+
+  // Outlet sama dengan form biaya
+  fillSelect($('depOutlet'), (data && data.outlets) || [], true);
+
+  onDepCekChange();
+  updateDepPreview();
+}
+
+// Tampilkan saldo + riwayat untuk pelanggan yang dipilih di Cek Saldo.
+function onDepCekChange() {
+  var name = $('depCekNama').value;
+  if (!name) { show($('depSaldoBox'), false); show($('depHistWrap'), false); return; }
+
+  $('depSaldo').textContent = rupiah(depBalance(name));
+  show($('depSaldoBox'), true);
+
+  var histBody = $('depHistBody');
+  histBody.innerHTML = '';
+  var hist = DEPOSIT.rows.filter(function (r) { return r.name === name; });
+  hist.forEach(function (r) {
+    var tr = document.createElement('tr');
+    [r.tanggal, r.outlet, rupiah(r.jumlah)].forEach(function (v) {
+      var td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+    });
+    histBody.appendChild(tr);
+  });
+  show($('depHistWrap'), hist.length > 0);
+}
+
+// Pratinjau transaksi deposit sebelum simpan.
+function updateDepPreview() {
+  var nama = $('depNama').value.trim();
+  var jenis = $('depJenis').value;
+  var nominal = Number(onlyDigits($('depNominal').value));
+
+  $('dpvNama').textContent = nama || '—';
+  $('dpvTanggal').textContent = $('depTanggal').value || '—';
+  $('dpvOutlet').textContent = $('depOutlet').value || '—';
+
+  var jumlah = (jenis && nominal > 0) ? (jenis === 'PEMAKAIAN' ? -nominal : nominal) : null;
+  $('dpvJumlah').textContent = (jumlah == null) ? '—' : rupiah(jumlah);
+
+  var saldoNow = nama ? depBalance(nama) : null;
+  $('dpvSaldoNow').textContent = (saldoNow == null) ? '—' : rupiah(saldoNow);
+  $('dpvSaldoAfter').textContent = (saldoNow == null || jumlah == null) ? '—' : rupiah(saldoNow + jumlah);
+}
+
+function handleDepSubmit(e) {
+  e.preventDefault();
+  var btn = $('depSubmitBtn');
+  setMsg($('depMsg'), '', '');
+
+  var payload = {
+    action: 'deposit',
+    password: getPw(),
+    name: $('depNama').value.trim(),
+    jenis: $('depJenis').value,
+    tanggal: $('depTanggal').value,
+    outlet: $('depOutlet').value,
+    nominal: onlyDigits($('depNominal').value)
+  };
+
+  if (!payload.jenis) return setMsg($('depMsg'), 'Pilih PEMAKAIAN atau PENAMBAHAN deposit dulu.', 'err');
+  if (!payload.name) return setMsg($('depMsg'), 'Nama pelanggan wajib diisi.', 'err');
+  if (!(Number(payload.nominal) > 0)) return setMsg($('depMsg'), 'Nominal harus angka lebih dari 0.', 'err');
+  if (!payload.tanggal) return setMsg($('depMsg'), 'Tanggal wajib diisi.', 'err');
+  if (!payload.outlet) return setMsg($('depMsg'), 'Outlet wajib dipilih.', 'err');
+
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+
+  jsonp(payload).then(function (res) {
+    if (!res.ok) {
+      if (res.error === 'UNAUTHORIZED') {
+        clearPw();
+        setMsg($('depMsg'), 'Sesi berakhir. Silakan masuk lagi.', 'err');
+        setTimeout(function () { location.reload(); }, 1200);
+        return;
+      }
+      throw new Error(res.error || 'Gagal menyimpan');
+    }
+    setMsg($('depMsg'), '✓ Tersimpan di baris ' + res.row + '. Saldo ' + res.name + ': ' + rupiah(res.saldo), 'ok');
+    $('depNominal').value = '';
+    loadData(); // segarkan saldo & daftar nama
+  }).catch(function (err) {
+    setMsg($('depMsg'), 'Gagal: ' + err.message, 'err');
+  }).then(function () {
+    btn.disabled = false; btn.textContent = '💾 Simpan Deposit';
+  });
+}
+
 // ---------- Load ----------
 function loadData(opts) {
   opts = opts || {};
@@ -387,13 +506,14 @@ function markNewRow() {
   if (first) first.classList.add('new');
 }
 
-// Tampilkan satu view: 'form' (Tambah Biaya) atau 'data' (Data Biaya).
+// Tampilkan satu view: 'form' (Tambah Biaya), 'data' (Data Biaya), 'deposit'.
 function showView(name) {
-  var isForm = name === 'form';
-  show($('viewForm'), isForm);
-  show($('viewData'), !isForm);
-  $('tabForm').classList.toggle('active', isForm);
-  $('tabData').classList.toggle('active', !isForm);
+  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit' };
+  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit' };
+  Object.keys(views).forEach(function (k) {
+    show($(views[k]), k === name);
+    $(tabs[k]).classList.toggle('active', k === name);
+  });
 }
 
 // ---------- Init ----------
@@ -422,6 +542,21 @@ function init() {
   // Tab / view
   $('tabForm').addEventListener('click', function () { showView('form'); });
   $('tabData').addEventListener('click', function () { showView('data'); });
+  $('tabDeposit').addEventListener('click', function () { showView('deposit'); });
+
+  // Deposit: tanggal default hari ini, format nominal, pratinjau, cek saldo
+  $('depTanggal').value = $('tanggal').value;
+  $('depNominal').addEventListener('input', function () {
+    var pos = this.value.length - this.selectionStart;
+    this.value = formatThousand(this.value);
+    this.selectionStart = this.selectionEnd = this.value.length - pos;
+  });
+  ['depJenis', 'depNama', 'depTanggal', 'depOutlet', 'depNominal'].forEach(function (id) {
+    $(id).addEventListener('input', updateDepPreview);
+    $(id).addEventListener('change', updateDepPreview);
+  });
+  $('depCekNama').addEventListener('change', onDepCekChange);
+  $('depForm').addEventListener('submit', handleDepSubmit);
 
   // Form & tombol
   $('biayaForm').addEventListener('submit', handleSubmit);
