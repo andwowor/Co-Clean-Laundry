@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Co Clean Laundry">
+  <!-- Lingkaran "C" luar (celah terbuka ke kanan) -->
+  <path d="M81.1 28.2 A38 38 0 1 1 81.1 71.8" fill="none" stroke="#15697b" stroke-width="13"/>
+  <!-- Cincin tengah -->
+  <circle cx="50" cy="50" r="20.5" fill="none" stroke="#15697b" stroke-width="9"/>
+  <!-- Titik inti (donat, tengah transparan) -->
+  <circle cx="50" cy="50" r="6" fill="none" stroke="#15697b" stroke-width="5"/>
+</svg>
