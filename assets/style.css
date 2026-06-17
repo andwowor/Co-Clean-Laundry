@@ -154,6 +154,21 @@ button.mini.danger:hover { background: var(--err-bg); }
 }
 .ghost.block { width: 100%; margin-top: 8px; }
 
+/* ---------- Klik-salin keterangan ---------- */
+td.copyable { cursor: pointer; color: var(--brand); text-decoration: underline dotted; }
+td.copyable:hover { background: #eef4ff; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 22px;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; max-width: 80vw;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; pointer-events: none; z-index: 50; box-shadow: var(--shadow);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* ---------- Deposit ---------- */
 .saldo-box {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
