@@ -9,6 +9,14 @@
   <!-- Cache-busting: selalu memuat CSS versi terbaru -->
   <script>document.write('<link rel="stylesheet" href="assets/style.css?v=' + Date.now() + '">');</script>
   <noscript><link rel="stylesheet" href="assets/style.css" /></noscript>
+  <!-- PWA (install di Android/Chrome & iPhone/Safari) -->
+  <meta name="theme-color" content="#15697b" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=2" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Co Clean" />
 </head>
 <body>
   <header class="topbar">
@@ -243,6 +251,13 @@
       }
       load('config.js', function () { load('assets/app.js'); });
     })();
+
+    // Service worker (agar bisa di-install sebagai aplikasi)
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
   </script>
 </body>
 </html>
