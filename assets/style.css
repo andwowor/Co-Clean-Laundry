@@ -1,26 +1,30 @@
 :root {
-  --bg: #f4f6fb;
+  --bg: #f3efe1;        /* krem dari logo */
+  --bg-2: #e7f1f1;      /* aqua sangat muda */
   --card: #ffffff;
-  --ink: #1c2430;
-  --muted: #6b7686;
-  --line: #e4e8f0;
-  --brand: #1f6feb;
-  --brand-dark: #1858c4;
-  --ok: #138a52;
-  --ok-bg: #e7f6ee;
+  --ink: #173a42;       /* teal gelap (teks) */
+  --muted: #6f8a90;     /* abu kebiruan */
+  --line: #e3e6df;
+  --brand: #15697b;     /* teal logo */
+  --brand-dark: #0f5160;
+  --brand-2: #2f93a6;   /* teal terang (aksen air) */
+  --aqua: #d8edef;      /* aqua muda */
+  --ok: #138a7a;
+  --ok-bg: #e3f4f0;
   --err: #c0392b;
   --err-bg: #fdecea;
   --warn-bg: #fff6e0;
   --warn-line: #f0d28a;
-  --radius: 14px;
-  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.06);
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(21,105,123,.06), 0 10px 30px rgba(21,105,123,.08);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: var(--bg);
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+  background-attachment: fixed;
   color: var(--ink);
   line-height: 1.45;
 }
@@ -28,17 +32,15 @@ body {
 /* ---------- Topbar ---------- */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; padding: 16px 22px;
-  background: linear-gradient(120deg, #1f6feb, #3a86ff);
-  color: #fff;
+  gap: 16px; padding: 12px 22px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 2px 12px rgba(21,105,123,.06);
 }
-.brand { display: flex; align-items: center; gap: 14px; }
-.logo {
-  font-size: 26px; background: rgba(255,255,255,.18);
-  width: 46px; height: 46px; display: grid; place-items: center; border-radius: 12px;
-}
-.topbar h1 { font-size: 19px; margin: 0; font-weight: 700; letter-spacing: .2px; }
-.subtitle { margin: 2px 0 0; font-size: 12.5px; opacity: .9; }
+.brand { display: flex; align-items: center; gap: 13px; }
+.brand-logo { width: 46px; height: 46px; display: block; flex: 0 0 auto; }
+.topbar h1 { font-size: 18px; margin: 0; font-weight: 700; color: var(--brand); letter-spacing: .2px; }
+.subtitle { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 
 /* ---------- Layout ---------- */
 .gate, .warn { max-width: 1100px; margin: 22px auto; padding: 0 18px; }
@@ -99,10 +101,12 @@ input:focus, select:focus {
 /* ---------- Buttons ---------- */
 button { cursor: pointer; font: inherit; border-radius: 10px; border: 1px solid transparent; }
 .primary {
-  background: var(--brand); color: #fff; padding: 12px 16px; width: 100%;
-  font-weight: 600; font-size: 15px; transition: background .15s;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: #fff;
+  padding: 12px 16px; width: 100%; font-weight: 600; font-size: 15px;
+  transition: filter .15s, transform .05s;
 }
-.primary:hover { background: var(--brand-dark); }
+.primary:hover { filter: brightness(1.06); }
+.primary:active { transform: translateY(1px); }
 .primary:disabled { opacity: .6; cursor: not-allowed; }
 .ghost {
   background: #fff; border: 1px solid var(--line); color: var(--ink);
@@ -116,9 +120,11 @@ button { cursor: pointer; font: inherit; border-radius: 10px; border: 1px solid 
 .msg.err { color: var(--err); background: var(--err-bg); padding: 10px 12px; border-radius: 10px; }
 
 /* ---------- Gate & warn ---------- */
-.gate { max-width: 420px; }
-.gate h2 { margin-top: 0; }
-.gate form { display: flex; flex-direction: column; gap: 12px; }
+.gate { max-width: 392px; text-align: center; }
+.gate-logo { width: 104px; height: 104px; display: block; margin: 2px auto 10px; }
+.gate h2 { margin: 0 0 4px; color: var(--brand); }
+.gate .muted { text-align: center; }
+.gate form { display: flex; flex-direction: column; gap: 12px; text-align: left; margin-top: 8px; }
 .warn {
   background: var(--warn-bg); border: 1px solid var(--warn-line);
   border-radius: 12px; padding: 14px 16px; display: flex; gap: 8px; flex-wrap: wrap;
