@@ -151,6 +151,41 @@ function applyData(data) {
   populateDeposit(data);
 }
 
+// Salin teks ke clipboard (dengan fallback untuk browser lama).
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  return new Promise(function (resolve, reject) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      ok ? resolve() : reject(new Error('copy failed'));
+    } catch (e) { reject(e); }
+  });
+}
+
+// Notifikasi singkat di bawah layar.
+function toast(msg) {
+  var t = $('cclToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'cclToast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(function () { t.classList.remove('show'); }, 1600);
+}
+
 function renderRecent(data) {
   var head = $('recentHead'), body = $('recentBody');
   head.innerHTML = ''; body.innerHTML = '';
@@ -165,6 +200,10 @@ function renderRecent(data) {
   thAksi.textContent = 'Aksi';
   head.appendChild(thAksi);
 
+  // Indeks kolom KETERANGAN (untuk fitur klik-salin)
+  var ketIdx = (data.headers || []).indexOf('KETERANGAN');
+  if (ketIdx < 0) ketIdx = 2;
+
   var oldFormat = false;
   (data.recent || []).forEach(function (raw) {
     // Dukung 2 format: objek {row, cells, edit} (baru) ATAU array sel (lama).
@@ -173,9 +212,18 @@ function renderRecent(data) {
     var item = isObj ? raw : { row: null, cells: raw, edit: null };
 
     var tr = document.createElement('tr');
-    (item.cells || []).forEach(function (cell) {
+    (item.cells || []).forEach(function (cell, ci) {
       var td = document.createElement('td');
       td.textContent = cell;
+      if (ci === ketIdx && String(cell).trim() !== '') {
+        td.className = 'copyable';
+        td.title = 'Klik untuk menyalin keterangan';
+        td.addEventListener('click', function () {
+          copyText(td.textContent)
+            .then(function () { toast('✓ Tersalin: ' + td.textContent); })
+            .catch(function () { toast('Gagal menyalin.'); });
+        });
+      }
       tr.appendChild(td);
     });
 
