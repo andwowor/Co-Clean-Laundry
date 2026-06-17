@@ -47,6 +47,7 @@
     <nav class="tabs">
       <button id="tabForm" class="tab active" type="button">➕ Tambah Biaya</button>
       <button id="tabData" class="tab" type="button">📊 Data Biaya</button>
+      <button id="tabDeposit" class="tab" type="button">💰 Deposit</button>
     </nav>
 
     <!-- ===== View: Tambah Biaya ===== -->
@@ -141,6 +142,86 @@
             <tbody id="recentBody"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== View: Deposit Pelanggan ===== -->
+    <section id="viewDeposit" class="view" hidden>
+      <!-- Cek saldo -->
+      <div class="card form-card">
+        <h2>Cek Saldo Deposit</h2>
+        <p class="muted">Pilih pelanggan untuk melihat saldo deposit tersisa & riwayatnya.</p>
+        <div class="field">
+          <label for="depCekNama">Nama Pelanggan</label>
+          <select id="depCekNama">
+            <option value="" selected>— Pilih pelanggan —</option>
+          </select>
+        </div>
+        <div id="depSaldoBox" class="saldo-box" hidden>
+          <span class="saldo-label">Saldo deposit tersisa</span>
+          <span id="depSaldo" class="saldo-value">—</span>
+        </div>
+        <div class="table-wrap" id="depHistWrap" hidden>
+          <table>
+            <thead><tr><th>Tanggal</th><th>Outlet</th><th>Jumlah</th></tr></thead>
+            <tbody id="depHistBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Input perubahan deposit -->
+      <div class="card form-card">
+        <h2>Input Perubahan Deposit</h2>
+        <p class="muted">Catat penambahan atau pemakaian deposit pelanggan.</p>
+        <form id="depForm" autocomplete="off">
+          <div class="field">
+            <label for="depJenis">Jenis Transaksi <span class="req">*</span></label>
+            <select id="depJenis" required>
+              <option value="" disabled selected>— Pilih jenis —</option>
+              <option value="PENAMBAHAN">PENAMBAHAN DEPOSIT (+)</option>
+              <option value="PEMAKAIAN">PEMAKAIAN DEPOSIT (−)</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="depNama">Nama Pelanggan <span class="req">*</span></label>
+            <input type="text" id="depNama" list="depNamaList" required placeholder="Pilih atau ketik nama baru..." />
+            <datalist id="depNamaList"></datalist>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label for="depTanggal">Tanggal <span class="req">*</span></label>
+              <input type="date" id="depTanggal" required />
+            </div>
+            <div class="field">
+              <label for="depOutlet">Outlet <span class="req">*</span></label>
+              <select id="depOutlet" required>
+                <option value="" disabled selected>— Pilih outlet —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="depNominal">Nominal (Rp) <span class="req">*</span></label>
+            <input type="text" id="depNominal" inputmode="numeric" required placeholder="0" />
+          </div>
+
+          <div class="preview">
+            <h3>Pratinjau sebelum simpan</h3>
+            <dl>
+              <div><dt>Nama Pelanggan</dt><dd id="dpvNama">—</dd></div>
+              <div><dt>Tanggal</dt><dd id="dpvTanggal">—</dd></div>
+              <div><dt>Outlet</dt><dd id="dpvOutlet">—</dd></div>
+              <div><dt>Jumlah Deposit (ditulis)</dt><dd id="dpvJumlah">—</dd></div>
+              <div><dt>Saldo sekarang</dt><dd id="dpvSaldoNow">—</dd></div>
+              <div><dt>Saldo setelah transaksi</dt><dd id="dpvSaldoAfter">—</dd></div>
+            </dl>
+          </div>
+
+          <button type="submit" class="primary" id="depSubmitBtn">💾 Simpan Deposit</button>
+          <p id="depMsg" class="msg" role="alert"></p>
+        </form>
       </div>
     </section>
   </main>

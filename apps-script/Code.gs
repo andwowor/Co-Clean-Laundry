@@ -35,6 +35,11 @@ var C_KODE    = 12; // L  KODE TRANSAKSI      (formula)
 var C_VERIF   = 13; // M  VERIFIKASI OWNER    <- input (dropdown)
 var C_KOREKSI = 14; // N  KETERANGAN KOREKSI  (dikosongkan)
 
+// ----- Sheet DEPOSIT (deposito pelanggan): A nama | B tanggal | C outlet | D jumlah -----
+// Baris 1 = header, baris 2 = TOTAL (=SUM(D3:D1001)), data mulai baris 3.
+var SHEET_DEPOSIT = 'DEPOSIT';
+var D_NAMA = 1, D_TGL = 2, D_OUTLET = 3, D_JUMLAH = 4;
+
 // =================================================================
 // ENTRY POINTS
 // =================================================================
@@ -50,6 +55,8 @@ function doGet(e) {
     try { result = updateRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else if (p.action === 'delete') {
     try { result = deleteRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else if (p.action === 'deposit') {
+    try { result = appendDeposit_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else {
     try { result = buildData_(); } catch (err) { result = { ok: false, error: String(err) }; }
   }
@@ -178,7 +185,8 @@ function buildData_() {
     statusLapor: statusLapor,
     verifikasi: verifikasi,
     recent: recent,
-    lastDataRow: lastData
+    lastDataRow: lastData,
+    deposit: buildDeposit_()
   };
 }
 
@@ -335,6 +343,101 @@ function nextNomor_(sh, lastData) {
     if (!isNaN(n) && n > max) max = n;
   }
   return max + 1;
+}
+
+// =================================================================
+// DEPOSIT PELANGGAN
+// =================================================================
+
+// Baris data deposit terakhir (>= 3). Baris 2 (TOTAL) dilewati.
+// Mengembalikan 2 bila belum ada data, sehingga baris berikutnya = 3.
+function lastDepositRow_(sh) {
+  var max = sh.getMaxRows();
+  var vals = sh.getRange(1, D_NAMA, max, 1).getValues();
+  for (var i = vals.length - 1; i >= 2; i--) { // i (0-based) >= 2 => baris >= 3
+    if (String(vals[i][0]).trim() !== '') return i + 1;
+  }
+  return 2;
+}
+
+// Data deposit untuk dashboard: daftar nama unik + semua transaksi + total.
+function buildDeposit_() {
+  var dep = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_DEPOSIT);
+  if (!dep) return null;
+
+  var lastDep = lastDepositRow_(dep);
+  var rows = [], names = [], seen = {}, total = 0;
+  if (lastDep >= 3) {
+    var cnt = lastDep - 2;
+    var disp = dep.getRange(3, 1, cnt, 4).getDisplayValues();
+    var raw  = dep.getRange(3, 1, cnt, 4).getValues();
+    for (var i = 0; i < cnt; i++) {
+      var nm = String(raw[i][0]).trim();
+      if (!nm) continue;
+      var jumlah = Number(raw[i][3]) || 0;
+      rows.push({ row: 3 + i, name: nm, tanggal: disp[i][1], outlet: disp[i][2], jumlah: jumlah });
+      total += jumlah;
+      if (!seen[nm]) { seen[nm] = true; names.push(nm); }
+    }
+  }
+  names.sort(function (a, b) { return a.localeCompare(b); });
+  return { names: names, rows: rows, total: total, lastDataRow: lastDep };
+}
+
+// Tambah satu transaksi deposit di baris kosong setelah baris data terakhir.
+// jenis: 'PEMAKAIAN' -> nominal negatif; 'PENAMBAHAN' -> nominal positif.
+function appendDeposit_(body) {
+  var name    = trim_(body.name);
+  var outlet  = trim_(body.outlet);
+  var jenis   = trim_(body.jenis);
+  var nominal = Number(body.nominal);
+  var tgl     = trim_(body.tanggal);
+
+  if (!name)          return { ok: false, error: 'Nama pelanggan wajib diisi.' };
+  if (jenis !== 'PEMAKAIAN' && jenis !== 'PENAMBAHAN')
+                      return { ok: false, error: 'Pilih PEMAKAIAN atau PENAMBAHAN deposit dulu.' };
+  if (!(nominal > 0)) return { ok: false, error: 'Nominal harus berupa angka lebih dari 0.' };
+  if (!tgl)           return { ok: false, error: 'Tanggal wajib diisi.' };
+  if (!outlet)        return { ok: false, error: 'Outlet wajib dipilih.' };
+
+  var parts = tgl.split('-');
+  if (parts.length !== 3) return { ok: false, error: 'Format tanggal tidak valid.' };
+  var dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0);
+
+  var jumlah = jenis === 'PEMAKAIAN' ? -nominal : nominal;
+
+  var dep = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_DEPOSIT);
+  if (!dep) return { ok: false, error: 'Sheet "' + SHEET_DEPOSIT + '" tidak ditemukan.' };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var lastDep = lastDepositRow_(dep);
+    var r = Math.max(3, lastDep + 1);
+    if (r > dep.getMaxRows()) dep.insertRowsAfter(dep.getMaxRows(), 1);
+
+    // Warisi format (tanggal & angka) dari baris data sebelumnya bila ada.
+    if (lastDep >= 3) {
+      dep.getRange(lastDep, 1, 1, 4).copyTo(dep.getRange(r, 1, 1, 4), { formatOnly: true });
+    }
+
+    dep.getRange(r, D_NAMA).setValue(name);
+    dep.getRange(r, D_TGL).setValue(dateObj);
+    dep.getRange(r, D_OUTLET).setValue(outlet);
+    dep.getRange(r, D_JUMLAH).setValue(jumlah);
+
+    SpreadsheetApp.flush();
+
+    // Hitung saldo pelanggan setelah transaksi.
+    var saldo = 0;
+    var col = dep.getRange(3, 1, r - 2, 4).getValues();
+    for (var i = 0; i < col.length; i++) {
+      if (String(col[i][0]).trim() === name) saldo += Number(col[i][3]) || 0;
+    }
+    return { ok: true, row: r, name: name, jumlah: jumlah, saldo: saldo };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // =================================================================
