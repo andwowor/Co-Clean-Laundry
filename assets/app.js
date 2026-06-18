@@ -704,7 +704,7 @@ function markNewRow() {
   if (first) first.classList.add('new');
 }
 
-// Tampilkan satu view: 'form' (Tambah Biaya), 'data' (Data Biaya), 'deposit'.
+// Tampilkan satu view aktif.
 function showView(name) {
   var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit', baru: 'viewBaru' };
   var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit', baru: 'tabBaru' };
