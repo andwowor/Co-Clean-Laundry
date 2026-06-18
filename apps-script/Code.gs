@@ -146,7 +146,7 @@ function buildData_() {
     if (dPos && eApp) { (posToApp[dPos] = posToApp[dPos] || {})[eApp] = true; }
     if (eApp && fItem) { (appToItem[eApp] = appToItem[eApp] || {})[fItem] = true; }
   }
-  var daftar = {
+  var daftar2 = {
     posBiaya: sortedKeys_(posSet),
     posBiayaAplikasi: sortedKeys_(appSet),
     itemBiaya: sortedKeys_(itemSet),
@@ -213,7 +213,7 @@ function buildData_() {
     verifikasi: verifikasi,
     recent: recent,
     lastDataRow: lastData,
-    daftar: daftar,
+    daftar: daftar2,
     deposit: buildDeposit_()
   };
 }
