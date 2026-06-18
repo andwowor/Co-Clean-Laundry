@@ -57,6 +57,8 @@ function doGet(e) {
     try { result = deleteRow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else if (p.action === 'deposit') {
     try { result = appendDeposit_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else if (p.action === 'daftarbiaya') {
+    try { result = appendDaftar_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else {
     try { result = buildData_(); } catch (err) { result = { ok: false, error: String(err) }; }
   }
@@ -129,6 +131,31 @@ function buildData_() {
   }
   ketList.sort(function (a, b) { return a.localeCompare(b); });
 
+  // ---- Rekomendasi untuk "Input Biaya Baru" (DAFTAR BIAYA kolom C..G) ----
+  var posSet = {}, appSet = {}, itemSet = {}, posToApp = {}, appToItem = {}, lastDaftar = 1;
+  for (i = 1; i < dRows.length; i++) {
+    var aAcc = String(dRows[i][0]).trim();
+    if (aAcc) posSet[aAcc] = true;
+    if (String(dRows[i][2]).trim()) lastDaftar = i + 1; // baris terisi terakhir (kolom C)
+    var dPos = String(dRows[i][3]).trim();
+    var eApp = String(dRows[i][4]).trim();
+    var fItem = String(dRows[i][5]).trim();
+    if (dPos) posSet[dPos] = true;
+    if (eApp) appSet[eApp] = true;
+    if (fItem) itemSet[fItem] = true;
+    if (dPos && eApp) { (posToApp[dPos] = posToApp[dPos] || {})[eApp] = true; }
+    if (eApp && fItem) { (appToItem[eApp] = appToItem[eApp] || {})[fItem] = true; }
+  }
+  var daftar2 = {
+    posBiaya: sortedKeys_(posSet),
+    posBiayaAplikasi: sortedKeys_(appSet),
+    itemBiaya: sortedKeys_(itemSet),
+    posToApp: setMapToArr_(posToApp),
+    appToItem: setMapToArr_(appToItem),
+    posCode: posCode,
+    lastDataRow: lastDaftar
+  };
+
   // ---- KODE OUTLET: daftar outlet + kodenya ----
   var oRows = outSh.getRange(1, 1, outSh.getLastRow(), 2).getValues();
   var outletList = [], outletCode = {};
@@ -186,6 +213,7 @@ function buildData_() {
     verifikasi: verifikasi,
     recent: recent,
     lastDataRow: lastData,
+    daftar: daftar2,
     deposit: buildDeposit_()
   };
 }
@@ -198,6 +226,18 @@ function distinct_(rows, colIdx) {
   }
   list.sort(function (a, b) { return a.localeCompare(b); });
   return list;
+}
+
+function sortedKeys_(obj) {
+  var a = Object.keys(obj);
+  a.sort(function (x, y) { return x.localeCompare(y); });
+  return a;
+}
+
+function setMapToArr_(m) {
+  var o = {};
+  for (var k in m) o[k] = sortedKeys_(m[k]);
+  return o;
 }
 
 /** Baris data terakhir = baris terbawah yang kolom KETERANGAN (C)-nya terisi. */
@@ -435,6 +475,55 @@ function appendDeposit_(body) {
       if (String(col[i][0]).trim() === name) saldo += Number(col[i][3]) || 0;
     }
     return { ok: true, row: r, name: name, jumlah: jumlah, saldo: saldo };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// =================================================================
+// INPUT BIAYA BARU (DAFTAR BIAYA kolom C..G)
+// =================================================================
+
+// Tambah satu jenis biaya baru ke DAFTAR BIAYA pada baris kosong berikutnya.
+// Kolom: C KETERANGAN | D POS BIAYA | E POS BIAYA APLIKASI | F ITEM BIAYA.
+// G KODE TRANSAKSI = formula (disalin dari baris sebelumnya, otomatis).
+function appendDaftar_(body) {
+  var ket  = trim_(body.keterangan);
+  var pos  = trim_(body.posBiaya);
+  var app  = trim_(body.posBiayaAplikasi);
+  var item = trim_(body.itemBiaya);
+  if (!ket) return { ok: false, error: 'Keterangan Biaya wajib diisi.' };
+  if (!pos) return { ok: false, error: 'POS BIAYA wajib dipilih.' };
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_DAFTAR);
+  if (!sh) return { ok: false, error: 'Sheet "' + SHEET_DAFTAR + '" tidak ditemukan.' };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    // Baris data terakhir berdasarkan kolom C (KETERANGAN BIAYA).
+    var max = sh.getMaxRows();
+    var colC = sh.getRange(1, 3, max, 1).getValues();
+    var lastRow = 1;
+    for (var i = colC.length - 1; i >= 1; i--) {
+      if (String(colC[i][0]).trim() !== '') { lastRow = i + 1; break; }
+    }
+    var r = lastRow + 1;
+    if (r > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), 1);
+
+    // Salin format + formula KODE TRANSAKSI (kolom G) dari baris sebelumnya
+    // (referensi $D{baris} otomatis menyesuaikan ke baris baru).
+    if (lastRow >= 2) {
+      sh.getRange(lastRow, 3, 1, 5).copyTo(sh.getRange(r, 3, 1, 5), { contentsOnly: false });
+    }
+    sh.getRange(r, 3).setValue(ket);   // C
+    sh.getRange(r, 4).setValue(pos);   // D
+    sh.getRange(r, 5).setValue(app);   // E
+    sh.getRange(r, 6).setValue(item);  // F
+
+    SpreadsheetApp.flush();
+    var kode = sh.getRange(r, 7).getDisplayValue(); // G KODE TRANSAKSI
+    return { ok: true, row: r, kode: kode, keterangan: ket };
   } finally {
     lock.releaseLock();
   }
