@@ -272,11 +272,10 @@ function validateInput_(body) {
 
   var parts = tgl.split('-'); // YYYY-MM-DD dari <input type=date>
   if (parts.length !== 3) return { error: 'Format tanggal tidak valid.' };
-  var dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0);
 
   return {
     ket: ket, outlet: outlet, sumber: sumber, status: status, verif: verif,
-    ketPakai: ketPakai, nominal: nominal, dateObj: dateObj
+    ketPakai: ketPakai, nominal: nominal, tglSerial: dateSerial_(parts)
   };
 }
 
@@ -284,7 +283,7 @@ function validateInput_(body) {
 function writeInputs_(sh, r, v) {
   sh.getRange(r, C_KET).setValue(v.ket);
   sh.getRange(r, C_NOMINAL).setValue(v.nominal);
-  sh.getRange(r, C_TGL).setValue(v.dateObj);
+  sh.getRange(r, C_TGL).setValue(v.tglSerial); // serial tanggal (tanpa jam)
   sh.getRange(r, C_OUTLET).setValue(v.outlet);
   sh.getRange(r, C_SUMBER).setValue(v.sumber);
   sh.getRange(r, C_KETPAKAI).setValue(v.ketPakai);
@@ -442,7 +441,7 @@ function appendDeposit_(body) {
 
   var parts = tgl.split('-');
   if (parts.length !== 3) return { ok: false, error: 'Format tanggal tidak valid.' };
-  var dateObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0);
+  var tglSerial = dateSerial_(parts);
 
   var jumlah = jenis === 'PEMAKAIAN' ? -nominal : nominal;
 
@@ -462,7 +461,7 @@ function appendDeposit_(body) {
     }
 
     dep.getRange(r, D_NAMA).setValue(name);
-    dep.getRange(r, D_TGL).setValue(dateObj);
+    dep.getRange(r, D_TGL).setValue(tglSerial); // serial tanggal (tanpa jam)
     dep.getRange(r, D_OUTLET).setValue(outlet);
     dep.getRange(r, D_JUMLAH).setValue(jumlah);
 
@@ -545,6 +544,12 @@ function toDateStr_(v) {
     return Utilities.formatDate(new Date(ms), 'UTC', 'yyyy-MM-dd');
   }
   return '';
+}
+
+// Serial tanggal Google Sheets (bilangan bulat hari, TANPA jam) dari [yyyy,mm,dd].
+function dateSerial_(parts) {
+  var ms = Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])) - Date.UTC(1899, 11, 30);
+  return Math.round(ms / 86400000);
 }
 
 function out_(obj) {
