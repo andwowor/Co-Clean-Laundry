@@ -57,6 +57,7 @@
       <button id="tabForm" class="tab active" type="button">➕ Tambah Biaya</button>
       <button id="tabData" class="tab" type="button">📊 Data Biaya</button>
       <button id="tabDeposit" class="tab" type="button">💰 Deposit</button>
+      <button id="tabBaru" class="tab" type="button">🧾 Biaya Baru</button>
     </nav>
 
     <!-- ===== View: Tambah Biaya ===== -->
@@ -230,6 +231,55 @@
 
           <button type="submit" class="primary" id="depSubmitBtn">💾 Simpan Deposit</button>
           <p id="depMsg" class="msg" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ===== View: Input Biaya Baru (DAFTAR BIAYA) ===== -->
+    <section id="viewBaru" class="view" hidden>
+      <div class="card form-card">
+        <h2>Input Biaya Baru</h2>
+        <p class="muted">Daftarkan jenis biaya baru ke sheet DAFTAR BIAYA (kolom C–G). Kode Transaksi terisi otomatis.</p>
+        <form id="baruForm" autocomplete="off">
+          <div class="field">
+            <label for="dbKet">Keterangan Biaya <span class="req">*</span></label>
+            <input type="text" id="dbKet" required placeholder="Ketik keterangan biaya baru..." />
+          </div>
+
+          <div class="field">
+            <label for="dbPos">POS BIAYA <span class="req">*</span></label>
+            <input type="text" id="dbPos" list="dbPosList" required placeholder="Pilih/ketik POS BIAYA..." />
+            <datalist id="dbPosList"></datalist>
+            <div class="recos" id="dbPosReco"></div>
+          </div>
+
+          <div class="field">
+            <label for="dbApp">POS BIAYA APLIKASI</label>
+            <input type="text" id="dbApp" list="dbAppList" placeholder="Pilih/ketik pos biaya aplikasi..." />
+            <datalist id="dbAppList"></datalist>
+            <div class="recos" id="dbAppReco"></div>
+          </div>
+
+          <div class="field">
+            <label for="dbItem">ITEM BIAYA</label>
+            <input type="text" id="dbItem" list="dbItemList" placeholder="Pilih/ketik item biaya..." />
+            <datalist id="dbItemList"></datalist>
+            <div class="recos" id="dbItemReco"></div>
+          </div>
+
+          <div class="preview">
+            <h3>Pratinjau sebelum simpan</h3>
+            <dl>
+              <div><dt>Keterangan Biaya (C)</dt><dd id="bpvKet">—</dd></div>
+              <div><dt>POS BIAYA (D)</dt><dd id="bpvPos">—</dd></div>
+              <div><dt>POS BIAYA APLIKASI (E)</dt><dd id="bpvApp">—</dd></div>
+              <div><dt>ITEM BIAYA (F)</dt><dd id="bpvItem">—</dd></div>
+              <div><dt>Kode Transaksi (G, otomatis)</dt><dd id="bpvKode">—</dd></div>
+            </dl>
+          </div>
+
+          <button type="submit" class="primary" id="baruSubmitBtn">💾 Simpan Biaya Baru</button>
+          <p id="baruMsg" class="msg" role="alert"></p>
         </form>
       </div>
     </section>
