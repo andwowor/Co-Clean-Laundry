@@ -18,6 +18,9 @@ var EDIT_ROW = null;
 // Data deposit pelanggan: { names, rows:[{name,tanggal,outlet,jumlah}], total }.
 var DEPOSIT = { names: [], rows: [], total: 0 };
 
+// Data DAFTAR BIAYA untuk rekomendasi "Input Biaya Baru".
+var DAFTAR = { posBiaya: [], posBiayaAplikasi: [], itemBiaya: [], posToApp: {}, appToItem: {}, posCode: {}, lastDataRow: 0 };
+
 // ---------- Helpers ----------
 var $ = function (id) { return document.getElementById(id); };
 
@@ -149,6 +152,7 @@ function applyData(data) {
 
   renderRecent(data);
   populateDeposit(data);
+  populateDaftar(data);
 }
 
 // Salin teks ke clipboard (dengan fallback untuk browser lama).
@@ -449,6 +453,152 @@ function handleDepSubmit(e) {
   });
 }
 
+// ---------- Input Biaya Baru (DAFTAR BIAYA) ----------
+function mergeUnique(primary, all) {
+  var seen = {}, out = [];
+  (primary || []).concat(all || []).forEach(function (v) {
+    v = String(v);
+    if (v && !seen[v]) { seen[v] = true; out.push(v); }
+  });
+  return out;
+}
+
+function fillDatalist(el, items) {
+  el.innerHTML = '';
+  (items || []).forEach(function (v) {
+    var o = document.createElement('option'); o.value = v; el.appendChild(o);
+  });
+}
+
+// Saran POS BIAYA dari KETERANGAN: cocokkan dengan keterangan yang sudah ada.
+function suggestPos(ket) {
+  ket = (ket || '').trim().toLowerCase();
+  if (!ket) return [];
+  var words = ket.split(/\s+/).filter(function (w) { return w.length >= 3; });
+  var score = {};
+  Object.keys(STATE.keteranganMap).forEach(function (k) {
+    var pos = (STATE.keteranganMap[k] || {}).subjek;
+    if (!pos) return;
+    var kl = k.toLowerCase();
+    var sc = 0;
+    if (kl === ket) sc += 100;
+    if (kl.indexOf(ket) !== -1 || ket.indexOf(kl) !== -1) sc += 20;
+    words.forEach(function (w) { if (kl.indexOf(w) !== -1) sc += 5; });
+    if (sc > 0) score[pos] = Math.max(score[pos] || 0, sc);
+  });
+  return Object.keys(score).sort(function (a, b) { return score[b] - score[a]; }).slice(0, 4);
+}
+
+// Chip rekomendasi yang bisa diklik untuk mengisi field.
+function renderRecos(containerId, items, inputId) {
+  var c = $(containerId);
+  c.innerHTML = '';
+  if (!items || !items.length) return;
+  var lbl = document.createElement('span');
+  lbl.className = 'reco-label'; lbl.textContent = 'Saran:';
+  c.appendChild(lbl);
+  items.slice(0, 5).forEach(function (v) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'reco'; b.textContent = v;
+    b.addEventListener('click', function () {
+      var el = $(inputId);
+      el.value = v;
+      el.dispatchEvent(new Event('change'));
+    });
+    c.appendChild(b);
+  });
+}
+
+function populateDaftar(data) {
+  var d = (data && data.daftar) || {};
+  DAFTAR = {
+    posBiaya: d.posBiaya || [],
+    posBiayaAplikasi: d.posBiayaAplikasi || [],
+    itemBiaya: d.itemBiaya || [],
+    posToApp: d.posToApp || {},
+    appToItem: d.appToItem || {},
+    posCode: d.posCode || {},
+    lastDataRow: d.lastDataRow || 0
+  };
+  fillDatalist($('dbPosList'), DAFTAR.posBiaya);
+  fillDatalist($('dbAppList'), DAFTAR.posBiayaAplikasi);
+  fillDatalist($('dbItemList'), DAFTAR.itemBiaya);
+  onBaruKet();
+  onBaruPos();
+  onBaruApp();
+}
+
+// KETERANGAN -> saran POS BIAYA
+function onBaruKet() {
+  var recos = suggestPos($('dbKet').value);
+  renderRecos('dbPosReco', recos, 'dbPos');
+  fillDatalist($('dbPosList'), mergeUnique(recos, DAFTAR.posBiaya));
+  updateBaruPreview();
+}
+
+// POS BIAYA -> saran POS BIAYA APLIKASI
+function onBaruPos() {
+  var reco = DAFTAR.posToApp[$('dbPos').value.trim()] || [];
+  renderRecos('dbAppReco', reco, 'dbApp');
+  fillDatalist($('dbAppList'), mergeUnique(reco, DAFTAR.posBiayaAplikasi));
+  updateBaruPreview();
+}
+
+// POS BIAYA APLIKASI -> saran ITEM BIAYA
+function onBaruApp() {
+  var reco = DAFTAR.appToItem[$('dbApp').value.trim()] || [];
+  renderRecos('dbItemReco', reco, 'dbItem');
+  fillDatalist($('dbItemList'), mergeUnique(reco, DAFTAR.itemBiaya));
+  updateBaruPreview();
+}
+
+function updateBaruPreview() {
+  var pos = $('dbPos').value.trim();
+  $('bpvKet').textContent = $('dbKet').value.trim() || '—';
+  $('bpvPos').textContent = pos || '—';
+  $('bpvApp').textContent = $('dbApp').value.trim() || '—';
+  $('bpvItem').textContent = $('dbItem').value.trim() || '—';
+  $('bpvKode').textContent = pos ? (DAFTAR.posCode[pos] || '(otomatis dari sheet)') : '—';
+}
+
+function handleBaruSubmit(e) {
+  e.preventDefault();
+  var btn = $('baruSubmitBtn');
+  setMsg($('baruMsg'), '', '');
+
+  var payload = {
+    action: 'daftarbiaya',
+    password: getPw(),
+    keterangan: $('dbKet').value.trim(),
+    posBiaya: $('dbPos').value.trim(),
+    posBiayaAplikasi: $('dbApp').value.trim(),
+    itemBiaya: $('dbItem').value.trim()
+  };
+  if (!payload.keterangan) return setMsg($('baruMsg'), 'Keterangan Biaya wajib diisi.', 'err');
+  if (!payload.posBiaya) return setMsg($('baruMsg'), 'POS BIAYA wajib dipilih.', 'err');
+
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  jsonp(payload).then(function (res) {
+    if (!res.ok) {
+      if (res.error === 'UNAUTHORIZED') {
+        clearPw();
+        setMsg($('baruMsg'), 'Sesi berakhir. Silakan masuk lagi.', 'err');
+        setTimeout(function () { location.reload(); }, 1200);
+        return;
+      }
+      throw new Error(res.error || 'Gagal menyimpan');
+    }
+    setMsg($('baruMsg'), '✓ Tersimpan di baris ' + res.row + '. Kode Transaksi: ' + (res.kode || '-'), 'ok');
+    $('dbKet').value = ''; $('dbPos').value = ''; $('dbApp').value = ''; $('dbItem').value = '';
+    onBaruKet(); onBaruPos(); onBaruApp();
+    loadData(); // segarkan agar keterangan baru muncul juga di form Tambah Biaya
+  }).catch(function (err) {
+    setMsg($('baruMsg'), 'Gagal: ' + err.message, 'err');
+  }).then(function () {
+    btn.disabled = false; btn.textContent = '💾 Simpan Biaya Baru';
+  });
+}
+
 // ---------- Load ----------
 function loadData(opts) {
   opts = opts || {};
@@ -556,8 +706,8 @@ function markNewRow() {
 
 // Tampilkan satu view: 'form' (Tambah Biaya), 'data' (Data Biaya), 'deposit'.
 function showView(name) {
-  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit' };
-  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit' };
+  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit', baru: 'viewBaru' };
+  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit', baru: 'tabBaru' };
   Object.keys(views).forEach(function (k) {
     show($(views[k]), k === name);
     $(tabs[k]).classList.toggle('active', k === name);
@@ -591,6 +741,7 @@ function init() {
   $('tabForm').addEventListener('click', function () { showView('form'); });
   $('tabData').addEventListener('click', function () { showView('data'); });
   $('tabDeposit').addEventListener('click', function () { showView('deposit'); });
+  $('tabBaru').addEventListener('click', function () { showView('baru'); });
 
   // Deposit: tanggal default hari ini, format nominal, pratinjau, cek saldo
   $('depTanggal').value = $('tanggal').value;
@@ -605,6 +756,16 @@ function init() {
   });
   $('depCekNama').addEventListener('change', onDepCekChange);
   $('depForm').addEventListener('submit', handleDepSubmit);
+
+  // Input biaya baru (DAFTAR BIAYA)
+  $('dbKet').addEventListener('input', onBaruKet);
+  $('dbPos').addEventListener('input', onBaruPos);
+  $('dbPos').addEventListener('change', onBaruPos);
+  $('dbApp').addEventListener('input', onBaruApp);
+  $('dbApp').addEventListener('change', onBaruApp);
+  $('dbItem').addEventListener('input', updateBaruPreview);
+  $('dbItem').addEventListener('change', updateBaruPreview);
+  $('baruForm').addEventListener('submit', handleBaruSubmit);
 
   // Form & tombol
   $('biayaForm').addEventListener('submit', handleSubmit);
