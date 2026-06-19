@@ -723,7 +723,10 @@ function renderAliran(filterDay) {
 
   (ALIRAN.metrics || []).forEach(function (m) {
     var tr = document.createElement('tr');
-    if (m.highlight) tr.className = 'selreal';
+    var cls = [];
+    if (m.highlight) cls.push('selreal');
+    if (m.text) cls.push('textrow');
+    if (cls.length) tr.className = cls.join(' ');
 
     var tdL = document.createElement('td');
     tdL.className = 'metric'; tdL.textContent = m.label;
@@ -732,10 +735,19 @@ function renderAliran(filterDay) {
     colIdx.forEach(function (ci) {
       var v = m.values[ci];
       var td = document.createElement('td');
-      td.className = 'num';
-      td.textContent = fmtCash(v);
-      if (m.highlight && typeof v === 'number' && v !== 0) {
-        td.classList.add(v > 0 ? 'pos' : 'neg');
+      if (m.text) {
+        // Teks panjang: bungkus agar wrap ke bawah (bukan melebarkan kolom).
+        td.className = 'wrap';
+        var box = document.createElement('div');
+        box.className = 'wrapbox';
+        box.textContent = (v == null || v === '') ? '' : String(v);
+        td.appendChild(box);
+      } else {
+        td.className = 'num';
+        td.textContent = fmtCash(v);
+        if (m.highlight && typeof v === 'number' && v !== 0) {
+          td.classList.add(v > 0 ? 'pos' : 'neg');
+        }
       }
       tr.appendChild(td);
     });
