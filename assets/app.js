@@ -711,7 +711,7 @@ function renderAliran(filterDay) {
 
   // Header: kolom Metrik (lengket) + satu kolom per tanggal.
   var thM = document.createElement('th');
-  thM.textContent = 'Metrik';
+  thM.textContent = 'TANGGAL';
   head.appendChild(thM);
   cols.forEach(function (d) {
     var th = document.createElement('th');
