@@ -58,6 +58,7 @@
       <button id="tabData" class="tab" type="button">📊 Data Biaya</button>
       <button id="tabDeposit" class="tab" type="button">💰 Deposit</button>
       <button id="tabBaru" class="tab" type="button">🧾 Biaya Baru</button>
+      <button id="tabAliran" class="tab" type="button">📈 Aliran Kas</button>
     </nav>
 
     <!-- ===== View: Tambah Biaya ===== -->
@@ -281,6 +282,40 @@
           <button type="submit" class="primary" id="baruSubmitBtn">💾 Simpan Biaya Baru</button>
           <p id="baruMsg" class="msg" role="alert"></p>
         </form>
+      </div>
+    </section>
+
+    <!-- ===== View: Aliran Kas (REKAP per outlet) ===== -->
+    <section id="viewAliran" class="view" hidden>
+      <div class="card">
+        <h2>Aliran Kas per Outlet</h2>
+        <p class="muted">Lihat aliran kas harian tiap outlet. Pilih outlet, bulan &amp; tahun. Bisa dipersempit ke satu tanggal. Tanggal yang belum terealisasi tidak ditampilkan.</p>
+        <div class="row2">
+          <div class="field">
+            <label for="afOutlet">Outlet</label>
+            <select id="afOutlet">
+              <option value="MAUMBI" selected>MAUMBI</option>
+              <option value="PERKAMIL">PERKAMIL</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="afBulan">Bulan &amp; Tahun</label>
+            <select id="afBulan"></select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="afTanggal">Tanggal (opsional)</label>
+          <select id="afTanggal">
+            <option value="" selected>— Semua tanggal —</option>
+          </select>
+        </div>
+        <p id="afMsg" class="msg" role="alert"></p>
+        <div class="table-wrap" id="afWrap" hidden>
+          <table id="afTable">
+            <thead><tr id="afHead"></tr></thead>
+            <tbody id="afBody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>

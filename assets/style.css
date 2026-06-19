@@ -194,5 +194,22 @@ button.reco:hover { background: var(--aqua); border-color: var(--brand-2); }
 .saldo-label { font-size: 13px; font-weight: 600; color: var(--ink); }
 .saldo-value { font-size: 22px; font-weight: 700; color: var(--ok); }
 
+/* ---------- Aliran Kas (REKAP per outlet) ---------- */
+#afTable th.num, #afTable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Kolom metrik (paling kiri) tetap terlihat saat tabel digeser horizontal. */
+#afTable th:first-child, #afTable td.metric {
+  position: sticky; left: 0; z-index: 1;
+  background: #fff; text-align: left; font-weight: 600;
+  white-space: normal; min-width: 168px; max-width: 230px;
+  box-shadow: 1px 0 0 var(--line);
+}
+#afTable thead th:first-child { z-index: 2; background: #f3f6fc; }
+#afTable tbody tr:hover td.metric { background: #fafbfe; }
+/* Baris SELISIH REAL: tebal + warna per-sel sesuai tanda. */
+#afTable tr.selreal td { font-weight: 700; }
+#afTable tr.selreal td.metric { color: var(--brand-dark); }
+#afTable td.pos { background: #ffe27a; color: #6b5300; }
+#afTable td.neg { background: #f6c0b8; color: #8a1c10; }
+
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
 [hidden] { display: none !important; }
