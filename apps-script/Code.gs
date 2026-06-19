@@ -40,6 +40,50 @@ var C_KOREKSI = 14; // N  KETERANGAN KOREKSI  (dikosongkan)
 var SHEET_DEPOSIT = 'DEPOSIT';
 var D_NAMA = 1, D_TGL = 2, D_OUTLET = 3, D_JUMLAH = 4;
 
+// ----- Sheet REKAP (aliran kas per outlet) -----
+// Setiap bulan adalah satu blok. Baris header blok memuat: kolom A = nama bulan,
+// kolom B = "HARI TERAKHIR BULAN SEBELUMNYA", kolom C = hari ke-1, dst.
+// (hari ke-d ada di kolom 2 + d). Blok teratas = FEBRUARI 2026, MARET 2026 di
+// baris 45, lalu tiap bulan berikutnya bergeser 51 baris (APRIL 96, MEI 147, ...).
+var SHEET_REKAP_MAUMBI   = 'REKAP KAS DAN TRANSAKSI MAUMBI';
+var SHEET_REKAP_PERKAMIL = 'REKAP KAS DAN TRANSAKSI PERKAMIL';
+
+// Nama bulan Indonesia (indeks 0 = Januari).
+var BULAN_ID = ['JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI',
+                'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'];
+
+// 27 metrik aliran kas: offset baris dari baris header bulan + label tampil.
+// Offset terverifikasi pada blok JUNI (header baris 198, SELISIH REAL baris 238 => +40).
+var CASHFLOW_METRICS = [
+  { off: 2,  label: 'Transaksi Tunai Catatan Buku' },
+  { off: 3,  label: 'Transaksi Tunai Real' },
+  { off: 4,  label: 'Transaksi Tunai Aplikasi' },
+  { off: 6,  label: 'Selisih Tunai: Buku vs Aplikasi' },
+  { off: 7,  label: 'Selisih Tunai: Buku vs Real' },
+  { off: 9,  label: 'Transaksi QRIS Catatan Buku' },
+  { off: 10, label: 'Transaksi QRIS Real' },
+  { off: 11, label: 'Transaksi QRIS Aplikasi' },
+  { off: 13, label: 'Selisih QRIS: Buku vs Aplikasi' },
+  { off: 14, label: 'Selisih QRIS: Buku vs Real' },
+  { off: 16, label: 'Transaksi Transfer Catatan Buku' },
+  { off: 17, label: 'Transaksi Transfer Real' },
+  { off: 18, label: 'Transaksi Transfer Aplikasi' },
+  { off: 20, label: 'Selisih Transfer: Buku vs Aplikasi' },
+  { off: 21, label: 'Selisih Transfer: Buku vs Real' },
+  { off: 23, label: 'Pendapatan Antar Jemput Tunai' },
+  { off: 24, label: 'Pendapatan Antar Jemput QRIS' },
+  { off: 25, label: 'Pendapatan Antar Jemput Transfer' },
+  { off: 27, label: 'Kas Tunai Aplikasi' },
+  { off: 28, label: 'Kas Tunai Lapor' },
+  { off: 29, label: 'Setoran Kas' },
+  { off: 30, label: 'Selisih' },
+  { off: 32, label: 'Biaya' },
+  { off: 37, label: 'Kas Tunai Hari Sebelumnya' },
+  { off: 38, label: 'Kas Tunai Seharusnya' },
+  { off: 39, label: 'Selisih Aplikasi' },
+  { off: 40, label: 'Selisih Real', highlight: true }
+];
+
 // =================================================================
 // ENTRY POINTS
 // =================================================================
@@ -59,6 +103,8 @@ function doGet(e) {
     try { result = appendDeposit_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else if (p.action === 'daftarbiaya') {
     try { result = appendDaftar_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else if (p.action === 'cashflow') {
+    try { result = buildCashflow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else {
     try { result = buildData_(); } catch (err) { result = { ok: false, error: String(err) }; }
   }
@@ -526,6 +572,101 @@ function appendDaftar_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// =================================================================
+// ALIRAN KAS (REKAP per outlet)
+// =================================================================
+
+// Data aliran kas satu bulan untuk satu outlet.
+// Param: outlet (MAUMBI/PERKAMIL), year (>=2026), month (1..12).
+// Mengembalikan daftar hari (dibatasi s/d hari ini bila bulan berjalan) dan
+// 27 metrik beserta nilai per hari. Hanya Maret 2026 ke atas.
+function buildCashflow_(p) {
+  var outlet = trim_(p.outlet).toUpperCase();
+  if (outlet !== 'PERKAMIL') outlet = 'MAUMBI';
+  var sheetName = outlet === 'PERKAMIL' ? SHEET_REKAP_PERKAMIL : SHEET_REKAP_MAUMBI;
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sh) return { ok: false, error: 'Sheet "' + sheetName + '" tidak ditemukan.' };
+
+  var year  = parseInt(p.year, 10);
+  var month = parseInt(p.month, 10); // 1..12
+  if (!(year >= 2026) || !(month >= 1 && month <= 12)) {
+    return { ok: false, error: 'Bulan/tahun tidak valid.' };
+  }
+  if (year === 2026 && month < 3) {
+    return { ok: false, error: 'Aliran kas hanya tersedia mulai Maret 2026.' };
+  }
+
+  var monthName = BULAN_ID[month - 1];
+
+  // Hari ini menurut zona waktu skrip (untuk menyembunyikan tanggal mendatang).
+  var t = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd').split('-');
+  var ty = +t[0], tm = +t[1], td = +t[2];
+
+  // Bulan di masa depan: belum ada yang bisa ditampilkan.
+  if (year > ty || (year === ty && month > tm)) {
+    return { ok: true, outlet: outlet, year: year, month: month,
+             monthName: monthName, days: [], metrics: [] };
+  }
+
+  var headerRow = findMonthHeaderRow_(sh, year, month);
+  if (!headerRow) {
+    return { ok: false, error: 'Data ' + monthName + ' ' + year + ' belum tersedia.' };
+  }
+
+  // Jumlah hari pada bulan tsb, dibatasi hingga hari ini bila bulan berjalan.
+  var daysInMonth = new Date(year, month, 0).getDate();
+  var maxDay = daysInMonth;
+  if (year === ty && month === tm) maxDay = Math.min(maxDay, td);
+
+  var days = [];
+  for (var d = 1; d <= maxDay; d++) days.push(d);
+
+  // Baca blok: header s/d offset terbesar (40). Hari ke-d ada di kolom (2 + d),
+  // sehingga kolom maksimum = 2 + daysInMonth. Minimal 34 (A..AH) untuk aman.
+  var numRows = 41; // offset 0..40
+  if (headerRow + numRows - 1 > sh.getMaxRows()) numRows = sh.getMaxRows() - headerRow + 1;
+  var numCols = Math.max(34, 2 + daysInMonth);
+  if (numCols > sh.getMaxColumns()) numCols = sh.getMaxColumns();
+  var block = sh.getRange(headerRow, 1, numRows, numCols).getValues();
+
+  var metrics = CASHFLOW_METRICS.map(function (m) {
+    var rowArr = block[m.off] || [];
+    var vals = [];
+    for (var k = 0; k < days.length; k++) {
+      // hari d -> kolom (2 + d) 1-based -> indeks 0-based (d + 1)
+      var cell = rowArr[days[k] + 1];
+      vals.push(typeof cell === 'number' ? cell
+                : (cell === '' || cell == null ? null : cell));
+    }
+    return { label: m.label, values: vals, highlight: !!m.highlight };
+  });
+
+  return {
+    ok: true, outlet: outlet, year: year, month: month,
+    monthName: monthName, days: days, metrics: metrics
+  };
+}
+
+// Cari baris (1-based) header blok bulan terpilih dengan memindai kolom A.
+// Blok teratas dianggap tahun 2026; tahun bertambah saat indeks bulan tidak naik
+// (mis. setelah DESEMBER muncul JANUARI). Mengembalikan 0 bila tidak ditemukan.
+function findMonthHeaderRow_(sh, year, month) {
+  var last = sh.getLastRow();
+  if (last < 1) return 0;
+  var colA = sh.getRange(1, 1, last, 1).getValues();
+  var curYear = 2026, prevMi = -1, anchored = false;
+  for (var i = 0; i < colA.length; i++) {
+    var mi = BULAN_ID.indexOf(String(colA[i][0] || '').trim().toUpperCase());
+    if (mi < 0) continue;
+    if (!anchored) { anchored = true; }
+    else if (mi <= prevMi) { curYear++; }
+    prevMi = mi;
+    if (curYear === year && (mi + 1) === month) return i + 1;
+  }
+  return 0;
 }
 
 // =================================================================

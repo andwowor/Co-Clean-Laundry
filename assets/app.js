@@ -21,6 +21,13 @@ var DEPOSIT = { names: [], rows: [], total: 0 };
 // Data DAFTAR BIAYA untuk rekomendasi "Input Biaya Baru".
 var DAFTAR = { posBiaya: [], posBiayaAplikasi: [], itemBiaya: [], posToApp: {}, appToItem: {}, posCode: {}, lastDataRow: 0 };
 
+// Aliran Kas (REKAP per outlet): data bulan yang sedang ditampilkan.
+var ALIRAN = { outlet: 'MAUMBI', year: 0, month: 0, monthName: '', days: [], metrics: [] };
+
+// Nama bulan (Title Case) untuk dropdown & judul Aliran Kas.
+var BULAN_LABEL = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli',
+                   'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
 // ---------- Helpers ----------
 var $ = function (id) { return document.getElementById(id); };
 
@@ -599,6 +606,153 @@ function handleBaruSubmit(e) {
   });
 }
 
+// ---------- Aliran Kas (REKAP per outlet) ----------
+function apiCashflow(outlet, year, month) {
+  return jsonp({ action: 'cashflow', password: getPw(), outlet: outlet, year: year, month: month });
+}
+
+// Format nilai aliran kas (boleh negatif): 761120 -> "761.120", -118600 -> "-118.600".
+function fmtCash(n) {
+  if (n == null || n === '') return '—';
+  if (typeof n !== 'number') return String(n);
+  var sign = n < 0 ? '-' : '';
+  return sign + formatThousand(String(Math.abs(Math.round(n))));
+}
+
+function titleCaseMonth(s) {
+  s = String(s || '').toLowerCase();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+}
+
+// Isi dropdown bulan: Maret 2026 s/d bulan berjalan (terbaru di atas).
+function buildBulanOptions() {
+  var sel = $('afBulan');
+  if (!sel) return;
+  sel.innerHTML = '';
+  var now = new Date();
+  var endY = now.getFullYear(), endM = now.getMonth() + 1; // 1..12
+  var list = [], y = 2026, m = 3;
+  while (y < endY || (y === endY && m <= endM)) {
+    list.push({ y: y, m: m });
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  if (!list.length) list.push({ y: 2026, m: 3 }); // jaga-jaga sebelum Mar 2026
+  list.reverse();
+  list.forEach(function (it) {
+    var o = document.createElement('option');
+    o.value = it.y + '-' + it.m;
+    o.textContent = BULAN_LABEL[it.m - 1] + ' ' + it.y;
+    sel.appendChild(o);
+  });
+}
+
+// Isi dropdown tanggal opsional dari daftar hari yang tersedia.
+function fillTanggalOptions(days) {
+  var sel = $('afTanggal');
+  sel.innerHTML = '';
+  var o0 = document.createElement('option');
+  o0.value = ''; o0.textContent = '— Semua tanggal —';
+  sel.appendChild(o0);
+  (days || []).forEach(function (d) {
+    var o = document.createElement('option');
+    o.value = String(d); o.textContent = 'Tanggal ' + d;
+    sel.appendChild(o);
+  });
+  sel.value = '';
+}
+
+// Ambil data aliran kas sesuai outlet + bulan yang dipilih, lalu render.
+function loadCashflow() {
+  if (!apiConfigured()) { show($('configWarn'), true); return; }
+  var outlet = $('afOutlet').value;
+  var ym = ($('afBulan').value || '').split('-');
+  if (ym.length !== 2) return;
+  var year = parseInt(ym[0], 10), month = parseInt(ym[1], 10);
+
+  setMsg($('afMsg'), 'Memuat aliran kas...', '');
+  show($('afWrap'), false);
+
+  apiCashflow(outlet, year, month).then(function (res) {
+    if (!res.ok) {
+      if (res.error === 'UNAUTHORIZED') {
+        clearPw();
+        setMsg($('afMsg'), 'Sesi berakhir. Silakan masuk lagi.', 'err');
+        setTimeout(function () { location.reload(); }, 1200);
+        return;
+      }
+      throw new Error(res.error || 'Gagal memuat aliran kas');
+    }
+    ALIRAN = {
+      outlet: res.outlet, year: res.year, month: res.month,
+      monthName: res.monthName, days: res.days || [], metrics: res.metrics || []
+    };
+    fillTanggalOptions(ALIRAN.days);
+    renderAliran(null);
+  }).catch(function (err) {
+    setMsg($('afMsg'), 'Gagal: ' + err.message, 'err');
+    show($('afWrap'), false);
+  });
+}
+
+// Render tabel aliran kas. filterDay = null (semua) atau angka tanggal tertentu.
+function renderAliran(filterDay) {
+  var head = $('afHead'), body = $('afBody');
+  head.innerHTML = ''; body.innerHTML = '';
+
+  var days = ALIRAN.days || [];
+  var cols = (filterDay == null) ? days.slice() : days.filter(function (d) { return d === filterDay; });
+  var lbl = titleCaseMonth(ALIRAN.monthName) + ' ' + (ALIRAN.year || '');
+
+  if (!cols.length) {
+    show($('afWrap'), false);
+    setMsg($('afMsg'), 'Belum ada data tanggal untuk ' + ALIRAN.outlet + ' · ' + lbl + '.', 'ok');
+    return;
+  }
+
+  // Header: kolom Metrik (lengket) + satu kolom per tanggal.
+  var thM = document.createElement('th');
+  thM.textContent = 'Metrik';
+  head.appendChild(thM);
+  cols.forEach(function (d) {
+    var th = document.createElement('th');
+    th.textContent = String(d); th.className = 'num';
+    head.appendChild(th);
+  });
+
+  var colIdx = cols.map(function (d) { return days.indexOf(d); });
+
+  (ALIRAN.metrics || []).forEach(function (m) {
+    var tr = document.createElement('tr');
+    if (m.highlight) tr.className = 'selreal';
+
+    var tdL = document.createElement('td');
+    tdL.className = 'metric'; tdL.textContent = m.label;
+    tr.appendChild(tdL);
+
+    colIdx.forEach(function (ci) {
+      var v = m.values[ci];
+      var td = document.createElement('td');
+      td.className = 'num';
+      td.textContent = fmtCash(v);
+      if (m.highlight && typeof v === 'number' && v !== 0) {
+        td.classList.add(v > 0 ? 'pos' : 'neg');
+      }
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+
+  show($('afWrap'), true);
+  var info = ALIRAN.outlet + ' · ' + lbl +
+    (filterDay == null ? (' · ' + cols.length + ' hari') : (' · tanggal ' + filterDay));
+  setMsg($('afMsg'), info, 'ok');
+}
+
+// Muat data Aliran Kas saat pertama kali tab dibuka.
+function ensureAliranLoaded() {
+  if (!ALIRAN.year) loadCashflow();
+}
+
 // ---------- Load ----------
 function loadData(opts) {
   opts = opts || {};
@@ -706,8 +860,8 @@ function markNewRow() {
 
 // Tampilkan satu view aktif.
 function showView(name) {
-  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit', baru: 'viewBaru' };
-  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit', baru: 'tabBaru' };
+  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit', baru: 'viewBaru', aliran: 'viewAliran' };
+  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit', baru: 'tabBaru', aliran: 'tabAliran' };
   Object.keys(views).forEach(function (k) {
     show($(views[k]), k === name);
     $(tabs[k]).classList.toggle('active', k === name);
@@ -742,6 +896,16 @@ function init() {
   $('tabData').addEventListener('click', function () { showView('data'); });
   $('tabDeposit').addEventListener('click', function () { showView('deposit'); });
   $('tabBaru').addEventListener('click', function () { showView('baru'); });
+  $('tabAliran').addEventListener('click', function () { showView('aliran'); ensureAliranLoaded(); });
+
+  // Aliran Kas (REKAP per outlet)
+  buildBulanOptions();
+  $('afOutlet').addEventListener('change', loadCashflow);
+  $('afBulan').addEventListener('change', loadCashflow);
+  $('afTanggal').addEventListener('change', function () {
+    var v = $('afTanggal').value;
+    renderAliran(v ? parseInt(v, 10) : null);
+  });
 
   // Deposit: tanggal default hari ini, format nominal, pratinjau, cek saldo
   $('depTanggal').value = $('tanggal').value;
