@@ -81,7 +81,8 @@ var CASHFLOW_METRICS = [
   { off: 37, label: 'Kas Tunai Hari Sebelumnya' },
   { off: 38, label: 'Kas Tunai Seharusnya' },
   { off: 39, label: 'Selisih Aplikasi' },
-  { off: 40, label: 'Selisih Real', highlight: true }
+  { off: 40, label: 'Selisih Real', highlight: true },
+  { off: 42, label: 'Penyebab Selisih dan Konklusi', text: true }
 ];
 
 // =================================================================
@@ -624,9 +625,9 @@ function buildCashflow_(p) {
   var days = [];
   for (var d = 1; d <= maxDay; d++) days.push(d);
 
-  // Baca blok: header s/d offset terbesar (40). Hari ke-d ada di kolom (2 + d),
-  // sehingga kolom maksimum = 2 + daysInMonth. Minimal 34 (A..AH) untuk aman.
-  var numRows = 41; // offset 0..40
+  // Baca blok: header s/d offset terbesar (42 = PENYEBAB). Hari ke-d ada di
+  // kolom (2 + d), sehingga kolom maksimum = 2 + daysInMonth. Minimal 34 (A..AH).
+  var numRows = 43; // offset 0..42
   if (headerRow + numRows - 1 > sh.getMaxRows()) numRows = sh.getMaxRows() - headerRow + 1;
   var numCols = Math.max(34, 2 + daysInMonth);
   if (numCols > sh.getMaxColumns()) numCols = sh.getMaxColumns();
@@ -641,7 +642,7 @@ function buildCashflow_(p) {
       vals.push(typeof cell === 'number' ? cell
                 : (cell === '' || cell == null ? null : cell));
     }
-    return { label: m.label, values: vals, highlight: !!m.highlight };
+    return { label: m.label, values: vals, highlight: !!m.highlight, text: !!m.text };
   });
 
   return {
