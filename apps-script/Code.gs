@@ -52,6 +52,9 @@ var SHEET_REKAP_PERKAMIL = 'REKAP KAS DAN TRANSAKSI PERKAMIL';
 var BULAN_ID = ['JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI',
                 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'];
 
+// Offset baris SETORAN KAS dari baris header bulan (terverifikasi: JUNI 198 -> 227).
+var REKAP_SETORAN_OFF = 29;
+
 // 27 metrik aliran kas: offset baris dari baris header bulan + label tampil.
 // Offset terverifikasi pada blok JUNI (header baris 198, SELISIH REAL baris 238 => +40).
 var CASHFLOW_METRICS = [
@@ -106,6 +109,8 @@ function doGet(e) {
     try { result = appendDaftar_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else if (p.action === 'cashflow') {
     try { result = buildCashflow_(p); } catch (err) { result = { ok: false, error: String(err) }; }
+  } else if (p.action === 'setoran') {
+    try { result = writeSetoran_(p); } catch (err) { result = { ok: false, error: String(err) }; }
   } else {
     try { result = buildData_(); } catch (err) { result = { ok: false, error: String(err) }; }
   }
@@ -668,6 +673,66 @@ function findMonthHeaderRow_(sh, year, month) {
     if (curYear === year && (mi + 1) === month) return i + 1;
   }
   return 0;
+}
+
+// =================================================================
+// INPUT SETORAN KAS (baris SETORAN KAS pada sheet REKAP)
+// =================================================================
+
+// Tulis nominal setoran ke baris SETORAN KAS pada sheet REKAP outlet terkait.
+// Param: outlet (MAUMBI/PERKAMIL), tanggal (YYYY-MM-DD), nominal (>0).
+// Baris = header bulan + 29; kolom = 2 + tanggal (hari 1 = kolom C).
+function writeSetoran_(p) {
+  var outlet = trim_(p.outlet).toUpperCase();
+  if (outlet !== 'MAUMBI' && outlet !== 'PERKAMIL') {
+    return { ok: false, error: 'Outlet harus MAUMBI atau PERKAMIL.' };
+  }
+  var sheetName = outlet === 'PERKAMIL' ? SHEET_REKAP_PERKAMIL : SHEET_REKAP_MAUMBI;
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sh) return { ok: false, error: 'Sheet "' + sheetName + '" tidak ditemukan.' };
+
+  var nominal = Number(p.nominal);
+  if (!(nominal > 0)) return { ok: false, error: 'Nominal setoran harus angka lebih dari 0.' };
+
+  var tgl = trim_(p.tanggal);
+  var parts = tgl.split('-');
+  if (parts.length !== 3) return { ok: false, error: 'Format tanggal tidak valid.' };
+  var year = Number(parts[0]), month = Number(parts[1]), day = Number(parts[2]);
+  if (!(year >= 2026) || !(month >= 1 && month <= 12) || !(day >= 1 && day <= 31)) {
+    return { ok: false, error: 'Tanggal tidak valid.' };
+  }
+  if (year === 2026 && month < 3) {
+    return { ok: false, error: 'Setoran hanya untuk Maret 2026 ke atas.' };
+  }
+  var daysInMonth = new Date(year, month, 0).getDate();
+  if (day > daysInMonth) {
+    return { ok: false, error: 'Tanggal ' + day + ' tidak ada di bulan ' + BULAN_ID[month - 1] + '.' };
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var headerRow = findMonthHeaderRow_(sh, year, month);
+    if (!headerRow) {
+      return { ok: false, error: 'Blok bulan ' + BULAN_ID[month - 1] + ' ' + year + ' tidak ditemukan.' };
+    }
+    var row = headerRow + REKAP_SETORAN_OFF; // baris SETORAN KAS
+    var col = 2 + day;                        // kolom hari (C = hari 1)
+
+    var cell = sh.getRange(row, col);
+    var prev = cell.getValue();
+    cell.setValue(nominal);
+    SpreadsheetApp.flush();
+
+    return {
+      ok: true, outlet: outlet, sheet: sheetName,
+      row: row, col: col, day: day, month: month, year: year,
+      monthName: BULAN_ID[month - 1], nominal: nominal,
+      previous: (typeof prev === 'number' ? prev : (prev === '' || prev == null ? null : prev))
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // =================================================================

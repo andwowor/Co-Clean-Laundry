@@ -59,6 +59,7 @@
       <button id="tabDeposit" class="tab" type="button">💰 Deposit</button>
       <button id="tabBaru" class="tab" type="button">🧾 Biaya Baru</button>
       <button id="tabAliran" class="tab" type="button">📈 Aliran Kas</button>
+      <button id="tabSetoran" class="tab" type="button">🏦 Setoran Kas</button>
     </nav>
 
     <!-- ===== View: Tambah Biaya ===== -->
@@ -316,6 +317,47 @@
             <tbody id="afBody"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- ===== View: Input Setoran Kas (REKAP, baris SETORAN KAS) ===== -->
+    <section id="viewSetoran" class="view" hidden>
+      <div class="card form-card">
+        <h2>Input Setoran Kas</h2>
+        <p class="muted">Catat nominal setoran kas ke sheet REKAP sesuai outlet &amp; tanggal (baris SETORAN KAS). Nilai pada tanggal tsb akan ditimpa.</p>
+        <form id="setoranForm" autocomplete="off">
+          <div class="row2">
+            <div class="field">
+              <label for="stOutlet">Outlet <span class="req">*</span></label>
+              <select id="stOutlet" required>
+                <option value="MAUMBI" selected>MAUMBI</option>
+                <option value="PERKAMIL">PERKAMIL</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="stTanggal">Tanggal <span class="req">*</span></label>
+              <input type="date" id="stTanggal" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="stNominal">Nominal Setoran (Rp) <span class="req">*</span></label>
+            <input type="text" id="stNominal" inputmode="numeric" required placeholder="0" />
+          </div>
+
+          <div class="preview">
+            <h3>Pratinjau sebelum simpan</h3>
+            <dl>
+              <div><dt>Outlet</dt><dd id="spvOutlet">—</dd></div>
+              <div><dt>Tanggal</dt><dd id="spvTanggal">—</dd></div>
+              <div><dt>Nominal Setoran</dt><dd id="spvNominal">—</dd></div>
+              <div><dt>Tujuan</dt><dd id="spvCell">—</dd></div>
+            </dl>
+          </div>
+
+          <button type="submit" class="primary" id="stSubmitBtn">💾 Simpan Setoran</button>
+          <p id="stMsg" class="msg" role="alert"></p>
+        </form>
       </div>
     </section>
   </main>

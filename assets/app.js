@@ -765,6 +765,75 @@ function ensureAliranLoaded() {
   if (!ALIRAN.year) loadCashflow();
 }
 
+// ---------- Input Setoran Kas (REKAP, baris SETORAN KAS) ----------
+// Ubah nomor kolom (1-based) menjadi huruf kolom A1 (3 -> "C", 33 -> "AG").
+function colLetter(n) {
+  var s = '';
+  while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+function updateSetoranPreview() {
+  var outlet = $('stOutlet').value;
+  var tgl = $('stTanggal').value;
+  var nominal = Number(onlyDigits($('stNominal').value));
+
+  $('spvOutlet').textContent = outlet || '—';
+  $('spvTanggal').textContent = tgl || '—';
+  $('spvNominal').textContent = nominal > 0 ? rupiah(nominal) : '—';
+
+  if (tgl) {
+    var p = tgl.split('-');
+    var day = parseInt(p[2], 10);
+    var sheet = outlet === 'PERKAMIL' ? 'REKAP KAS DAN TRANSAKSI PERKAMIL' : 'REKAP KAS DAN TRANSAKSI MAUMBI';
+    $('spvCell').textContent = sheet + ' · baris SETORAN KAS · kolom ' + colLetter(2 + day) + ' (tanggal ' + day + ')';
+  } else {
+    $('spvCell').textContent = '—';
+  }
+}
+
+function handleSetoranSubmit(e) {
+  e.preventDefault();
+  var btn = $('stSubmitBtn');
+  setMsg($('stMsg'), '', '');
+
+  var payload = {
+    action: 'setoran',
+    password: getPw(),
+    outlet: $('stOutlet').value,
+    tanggal: $('stTanggal').value,
+    nominal: onlyDigits($('stNominal').value)
+  };
+  if (!payload.outlet) return setMsg($('stMsg'), 'Outlet wajib dipilih.', 'err');
+  if (!payload.tanggal) return setMsg($('stMsg'), 'Tanggal wajib diisi.', 'err');
+  if (!(Number(payload.nominal) > 0)) return setMsg($('stMsg'), 'Nominal harus angka lebih dari 0.', 'err');
+
+  btn.disabled = true; btn.textContent = 'Menyimpan...';
+  jsonp(payload).then(function (res) {
+    if (!res.ok) {
+      if (res.error === 'UNAUTHORIZED') {
+        clearPw();
+        setMsg($('stMsg'), 'Sesi berakhir. Silakan masuk lagi.', 'err');
+        setTimeout(function () { location.reload(); }, 1200);
+        return;
+      }
+      throw new Error(res.error || 'Gagal menyimpan');
+    }
+    var msg = '✓ Setoran ' + res.outlet + ' tanggal ' + res.day + ' ' +
+      (BULAN_LABEL[res.month - 1] || '') + ' ' + res.year + ' tersimpan: ' + rupiah(res.nominal) + '.';
+    if (res.previous != null && Number(res.previous) !== 0) {
+      msg += ' (sebelumnya ' + rupiah(res.previous) + ')';
+    }
+    setMsg($('stMsg'), msg, 'ok');
+    $('stNominal').value = '';
+    updateSetoranPreview();
+  }).catch(function (err) {
+    setMsg($('stMsg'), 'Gagal: ' + err.message, 'err');
+  }).then(function () {
+    btn.disabled = false; btn.textContent = '💾 Simpan Setoran';
+  });
+}
+
 // ---------- Load ----------
 function loadData(opts) {
   opts = opts || {};
@@ -872,8 +941,8 @@ function markNewRow() {
 
 // Tampilkan satu view aktif.
 function showView(name) {
-  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit', baru: 'viewBaru', aliran: 'viewAliran' };
-  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit', baru: 'tabBaru', aliran: 'tabAliran' };
+  var views = { form: 'viewForm', data: 'viewData', deposit: 'viewDeposit', baru: 'viewBaru', aliran: 'viewAliran', setoran: 'viewSetoran' };
+  var tabs = { form: 'tabForm', data: 'tabData', deposit: 'tabDeposit', baru: 'tabBaru', aliran: 'tabAliran', setoran: 'tabSetoran' };
   Object.keys(views).forEach(function (k) {
     show($(views[k]), k === name);
     $(tabs[k]).classList.toggle('active', k === name);
@@ -918,6 +987,21 @@ function init() {
     var v = $('afTanggal').value;
     renderAliran(v ? parseInt(v, 10) : null);
   });
+
+  // Input Setoran Kas (REKAP)
+  $('tabSetoran').addEventListener('click', function () { showView('setoran'); });
+  $('stTanggal').value = $('tanggal').value; // default hari ini
+  $('stNominal').addEventListener('input', function () {
+    var pos = this.value.length - this.selectionStart;
+    this.value = formatThousand(this.value);
+    this.selectionStart = this.selectionEnd = this.value.length - pos;
+  });
+  ['stOutlet', 'stTanggal', 'stNominal'].forEach(function (id) {
+    $(id).addEventListener('input', updateSetoranPreview);
+    $(id).addEventListener('change', updateSetoranPreview);
+  });
+  $('setoranForm').addEventListener('submit', handleSetoranSubmit);
+  updateSetoranPreview();
 
   // Deposit: tanggal default hari ini, format nominal, pratinjau, cek saldo
   $('depTanggal').value = $('tanggal').value;
