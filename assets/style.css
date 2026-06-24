@@ -195,6 +195,8 @@ button.reco:hover { background: var(--aqua); border-color: var(--brand-2); }
 .saldo-value { font-size: 22px; font-weight: 700; color: var(--ok); }
 
 /* ---------- Aliran Kas (REKAP per outlet) ---------- */
+/* Pakai lebar penuh layar agar lebih banyak kolom tanggal tampak sekaligus. */
+#viewAliran { max-width: none; }
 #afTable th.num, #afTable td.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* Kolom metrik (paling kiri) tetap terlihat saat tabel digeser horizontal. */
 #afTable th:first-child, #afTable td.metric {
